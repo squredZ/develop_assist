@@ -112,6 +112,9 @@ candidate_steps:
         pattern: Start capture
         match_type: substring
         evidence_type: step_started
+        meaning: 拍照请求已发起
+        severity: low
+        confidence_weight: 2
         required: true
         weight: 3
         missing_meaning: 未发起拍照
