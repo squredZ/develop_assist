@@ -1,0 +1,55 @@
+name: camera_ui
+display_name: 相机 UI
+code_path: apps/camera/src/photo
+responsibility: 拍照入口、UI 状态、拍照结果展示
+symbols:
+  - name: onShutterClick
+    file: apps/camera/src/photo/PhotoPage.ts
+    kind: method
+    relevance: high
+    reason: 拍照按钮点击入口
+logs:
+  - tag: CameraUI
+    level: INFO
+    pattern: Shutter clicked
+    match_type: substring
+    meaning: 用户点击拍照按钮
+    evidence_type: step_started
+    related_step: capture_request
+    severity: low
+    confidence_weight: 2
+candidate_steps:
+  - id: capture_request
+    description: 用户点击拍照按钮
+    file: apps/camera/src/photo/PhotoPage.ts
+    symbol: onShutterClick
+    async: false
+    optional: false
+    confidence: high
+    reason: 拍照流程起点
+    expected_logs:
+      - tag: CameraUI
+        level: INFO
+        pattern: Shutter clicked
+        match_type: substring
+        evidence_type: step_started
+        meaning: 拍照已发起
+        severity: low
+        confidence_weight: 2
+        required: true
+        weight: 3
+        missing_meaning: 未观察到用户点击拍照
+failure_signals:
+  - tag: CameraUI
+    level: ERROR
+    pattern: Capture failed
+    match_type: substring
+    severity: high
+    suggested_cause: 拍照请求失败
+    meaning: 拍照请求在 UI 层失败
+    related_step: capture_request
+    confidence_weight: 5
+metadata:
+  generated_by: hilog-agent
+  generated_at: "2026-06-28 14:35:00"
+  review_notes: []

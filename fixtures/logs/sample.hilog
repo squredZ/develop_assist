@@ -1,0 +1,7 @@
+2026-06-28 14:35:00.000 CameraService INFO Start capture request id=42
+2026-06-28 14:35:00.500 CameraService INFO Capture session ready
+2026-06-28 14:35:01.000 ImagePipeline INFO process image buf=0x7f00
+garbage line that cannot be parsed
+2026-06-28 14:35:02.000 CameraService ERROR Capture failed: timeout
+2026-06-28 14:35:03.000 ImagePipeline INFO process image complete
+another unparsed junk

@@ -1,0 +1,56 @@
+name: camera_capture
+display_name: 相机拍照
+description: 拍照功能链路，包括 UI 触发、相机会话、拍照请求、图像回调、保存与展示
+keywords:
+  - 拍照
+  - 出图
+  - capture
+modules:
+  - name: camera_ui
+    yaml_path: modules/camera_ui.yaml
+    responsibility: 拍照入口、UI 状态、拍照结果展示
+call_chains:
+  - name: normal_capture
+    description: 正常拍照链路
+    keywords:
+      - 拍照
+      - 出图
+    steps:
+      - id: capture_request
+        module: camera_ui
+        file: apps/camera/src/PhotoPage.ts
+        symbol: onShutterClick
+        description: 发起拍照请求
+        optional: false
+        async: false
+        expected_logs:
+          - tag: CameraUI
+            level: INFO
+            pattern: Shutter clicked
+            match_type: substring
+            evidence_type: step_started
+            required: true
+            weight: 3
+            missing_meaning: 未观察到用户点击拍照
+failure_patterns:
+  - symptom: 拍照不出图
+    related_steps:
+      - capture_request
+    key_logs:
+      - tag: CameraUI
+        level: ERROR
+        pattern: Capture failed
+        match_type: substring
+        severity: high
+        confidence_weight: 5
+        related_step: capture_request
+        suggested_cause: 拍照请求失败
+        meaning: 拍照请求在 UI 层失败
+    possible_causes:
+      - 拍照请求失败
+metadata:
+  status: active
+  owner: multimedia
+  version: 1
+  updated_at: "2026-06-28 14:35:00"
+  review_notes: []
