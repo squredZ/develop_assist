@@ -67,7 +67,7 @@ def parse_hilog_file(path: str | Path) -> HilogParseResult:
     """Parse a hilog text file on disk."""
     path = Path(path)
     logger.info("parsing hilog file: %s", path)
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         lines = f.readlines()
     events, unparsed_lines = parse_hilog_lines(lines)
     result = HilogParseResult(

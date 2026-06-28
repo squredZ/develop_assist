@@ -122,7 +122,7 @@ def add_module(
             logger.info("backup created: %s", backup_path)
 
         os.makedirs(str(mod_out.parent), exist_ok=True)
-        with open(mod_out, "w") as f:
+        with open(mod_out, "w", encoding="utf-8") as f:
             yaml.dump(module_yaml.model_dump(exclude_none=True), f, allow_unicode=True)
         written.append(WrittenFile(path=str(mod_out), action="created"))
         logger.info("module YAML written: %s", mod_out)
@@ -132,7 +132,7 @@ def add_module(
             bak = feat_yaml_path.with_suffix(f".yaml.bak.{now.replace(' ', '_')}")
             os.rename(str(feat_yaml_path), str(bak))
             written.append(WrittenFile(path=str(bak), action="backup_created"))
-        with open(feat_yaml_path, "w") as f:
+        with open(feat_yaml_path, "w", encoding="utf-8") as f:
             yaml.dump(updated_feature.model_dump(exclude_none=True), f, allow_unicode=True)
         written.append(WrittenFile(path=str(feat_yaml_path), action="updated"))
         logger.info(

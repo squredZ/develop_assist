@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QAction
@@ -16,19 +15,6 @@ PORT = os.environ.get("HILOG_PORT", "8710")
 BASE_URL = f"http://{HOST}:{PORT}"
 
 
-def _find_chat_html() -> str:
-    """Locate chat.html — works in dev and PyInstaller bundle."""
-    candidates = [
-        Path(__file__).parent / "chat.html",
-        Path(sys._MEIPASS) / "frontend" / "chat.html" if hasattr(sys, "_MEIPASS") else None,
-        Path("frontend/chat.html"),
-    ]
-    for p in candidates:
-        if p and p.exists():
-            return str(p.resolve())
-    raise FileNotFoundError("chat.html not found")
-
-
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -38,8 +24,7 @@ class MainWindow(QMainWindow):
 
         # Web view
         self.web = QWebEngineView()
-        html_path = _find_chat_html()
-        self.web.setUrl(QUrl.fromLocalFile(html_path))
+        self.web.setUrl(QUrl(BASE_URL))
 
         central = QWidget()
         layout = QVBoxLayout(central)

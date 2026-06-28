@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -58,6 +60,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------
+# Serve the frontend root so PyQt loads from http:// not file://
+# ---------------------------------------------------------------
+_frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
+_chat_html = _frontend_dir / "chat.html"
+
+
+@app.get("/")
+async def serve_frontend():
+    """Serve chat.html as the root page (same-origin with API)."""
+    if _chat_html.exists():
+        return HTMLResponse(_chat_html.read_text(encoding="utf-8"))
+    logger.warning("chat.html not found at %s", _chat_html)
+    return HTMLResponse("<h1>Frontend not found</h1>", status_code=404)
 
 
 # ---------------------------------------------------------------

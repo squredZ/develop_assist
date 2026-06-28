@@ -134,7 +134,7 @@ def load_config(
     path = Path(config_path)
     if path.exists():
         logger.info("loading config from %s", path)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
     else:
         logger.info("config file not found at %s — using defaults", path)

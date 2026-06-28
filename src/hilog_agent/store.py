@@ -46,7 +46,7 @@ class FeatureStore:
             logger.error("feature not found: %s", path)
             raise ValueError(f"Feature '{name}' not found at {path}")
         logger.debug("reading feature: %s", path)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return FeatureYaml.model_validate(data)
 
@@ -59,7 +59,7 @@ class FeatureStore:
                 f"Module '{module_name}' not found in feature '{feature_name}' at {path}"
             )
         logger.debug("reading module: %s", path)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return ModuleYaml.model_validate(data)
 

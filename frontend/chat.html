@@ -3,149 +3,976 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hilog Agent</title>
+<title>Hilog Agent — 日志排障助手</title>
 <style>
-/* ===== Reset & Layout ===== */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ============================================================
+   Token System — Hilog Agent
+   Palette: steel dark (dev-tool inspired) + teal accent
+   ============================================================ */
 :root {
-  --sidebar-w: 280px;
-  --bg: #212121; --bg-chat: #2f2f2f;
-  --bg-sidebar: #171717; --bg-input: #3a3a3a;
-  --text: #ececec; --text-dim: #b4b4b4; --text-sidebar: #a0a0a0;
-  --accent: #10a37f; --accent-hover: #1a7f64;
-  --user-bubble: #2f2f2f; --assistant-bubble: transparent;
-  --thinking-bg: #1e1e1e; --tool-bg: #252525;
-  --border: #4a4a4a; --radius: 12px; --radius-sm: 6px;
+  /* Color */
+  --bg-deeper: #0d1117;
+  --bg: #161b22;
+  --bg-raised: #1c2333;
+  --bg-hover: #21283d;
+  --text: #e6edf3;
+  --text-dim: #8b949e;
+  --text-muted: #585e6b;
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-sub: #06b6d4;
+  --warn: #fbbf24;
+  --error: #f87171;
+  --success: #34d399;
+  --border: #30363d;
+  --border-light: #21262d;
+
+  /* Typography */
   --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'SF Mono', 'Consolas', monospace;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* Geometry */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --sidebar-w: 280px;
+  --chat-max-w: 760px;
 }
-body { font-family: var(--font); background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
 
-/* ===== Sidebar ===== */
-#sidebar { width: var(--sidebar-w); background: var(--bg-sidebar); display: flex; flex-direction: column; border-right: 1px solid var(--border); flex-shrink: 0; }
-#sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
-#sidebar-header h2 { font-size: 15px; font-weight: 600; color: var(--text); }
-#new-chat-btn { flex: 1; margin: 10px 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text); cursor: pointer; font-size: 13px; text-align: left; }
-#new-chat-btn:hover { background: var(--bg-input); }
-#session-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
-.session-item { padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text-sidebar); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.session-item:hover, .session-item.active { background: var(--bg-input); color: var(--text); }
-#sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim); }
-#features-list { padding: 8px 12px; border-top: 1px solid var(--border); }
-#features-list summary { font-size: 12px; color: var(--text-dim); cursor: pointer; padding: 4px 0; }
-.feature-tag { display: inline-block; padding: 2px 8px; margin: 2px; border-radius: 10px; background: var(--bg-input); font-size: 11px; cursor: pointer; color: var(--text-dim); }
-.feature-tag:hover { background: var(--accent); color: #fff; }
+/* ============================================================
+   Reset & Base
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ===== Main Chat Area ===== */
-#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-#chat-container { flex: 1; overflow-y: auto; padding: 20px 0; }
-#chat-inner { max-width: 800px; margin: 0 auto; padding: 0 24px; }
+body {
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
 
-/* ===== Messages ===== */
-.msg-row { display: flex; margin-bottom: 24px; gap: 12px; }
-.msg-row.user { flex-direction: row-reverse; }
-.msg-avatar { width: 32px; height: 32px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-.msg-row.user .msg-avatar { background: #6b4ce6; }
-.msg-row.assistant .msg-avatar { background: var(--accent); }
-.msg-bubble { max-width: 100%; line-height: 1.6; font-size: 15px; }
-.msg-row.user .msg-bubble { background: var(--user-bubble); padding: 12px 16px; border-radius: var(--radius) var(--radius) 4px var(--radius); border: 1px solid var(--border); }
-.msg-row.assistant .msg-bubble { padding: 4px 0; }
+/* ============================================================
+   Sidebar
+   ============================================================ */
+#sidebar {
+  width: var(--sidebar-w);
+  background: var(--bg-deeper);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+}
 
-/* ===== Special blocks (inside assistant bubbles) ===== */
-.thinking-block { background: var(--thinking-bg); border-left: 2px solid #f0c040; padding: 10px 14px; margin: 8px 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 13px; color: var(--text-dim); font-style: italic; }
-.thinking-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #f0c040; margin-bottom: 4px; font-style: normal; font-weight: 600; }
+#sidebar-header {
+  padding: var(--space-lg) var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+#sidebar-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+#sidebar-header .logo-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-sub));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--bg-deeper);
+  font-weight: 700;
+  flex-shrink: 0;
+}
 
-.tool-call-block { background: var(--tool-bg); border-left: 2px solid #4a9eff; padding: 10px 14px; margin: 8px 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; cursor: pointer; }
-.tool-call-block summary { font-size: 13px; font-weight: 600; color: #4a9eff; list-style: none; display: flex; align-items: center; gap: 6px; }
-.tool-call-block summary::before { content: '🔧'; font-size: 12px; }
-.tool-call-block summary .tool-args { font-weight: 400; color: var(--text-dim); font-size: 12px; }
-.tool-call-body { margin-top: 8px; padding: 8px; background: var(--bg); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; overflow-x: auto; max-height: 200px; overflow-y: auto; }
+#new-chat-btn {
+  margin: var(--space-sm) var(--space-lg);
+  padding: 9px var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  transition: background .15s, color .15s, border-color .15s;
+}
+#new-chat-btn:hover {
+  background: var(--bg-raised);
+  color: var(--text);
+  border-color: var(--accent);
+}
 
-.tool-result-block { background: var(--tool-bg); border-left: 2px solid #6ee7b7; padding: 10px 14px; margin: 8px 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
-.tool-result-block summary { font-size: 13px; font-weight: 600; color: #6ee7b7; list-style: none; display: flex; align-items: center; gap: 6px; }
-.tool-result-block summary::before { content: '✅'; font-size: 12px; }
-.tool-result-body { margin-top: 8px; font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; overflow-x: auto; max-height: 200px; overflow-y: auto; color: var(--text-dim); }
+#session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xs) var(--space-lg);
+}
+.session-item {
+  padding: 10px var(--space-md);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-left: 2px solid transparent;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.session-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.session-item:hover {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+.session-item.active {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-left: 2px solid var(--accent);
+}
+.session-item .msg-count {
+  float: right;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: var(--space-sm);
+}
 
-.error-block { background: #3d1717; border: 1px solid #c0392b; padding: 12px 16px; margin: 8px 0; border-radius: var(--radius-sm); color: #e74c3c; font-size: 13px; }
+#sidebar-footer {
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--border-light);
+  font-size: 11px;
+  color: var(--text-muted);
+}
 
-/* ===== Markdown in messages ===== */
-.msg-bubble code { background: var(--bg-input); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 13px; }
-.msg-bubble pre { background: #1a1a1a; padding: 14px; border-radius: var(--radius-sm); overflow-x: auto; margin: 8px 0; }
-.msg-bubble pre code { background: none; padding: 0; }
-.msg-bubble p { margin-bottom: 8px; }
-.msg-bubble p:last-child { margin-bottom: 0; }
-.msg-bubble ul, .msg-bubble ol { margin: 8px 0; padding-left: 24px; }
-.cursor-blink { display: inline-block; width: 8px; height: 16px; background: var(--text); animation: blink 1s step-end infinite; vertical-align: middle; margin-left: 2px; }
+/* Features panel */
+#features-list {
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--border-light);
+}
+#features-list summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px 0;
+  user-select: none;
+}
+#features-list summary::marker { color: var(--text-muted); }
+.feature-tags-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--space-sm);
+}
+.feature-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text-dim);
+  border: 1px solid transparent;
+  transition: all .12s;
+}
+.feature-tag:hover {
+  background: var(--accent);
+  color: #0d1117;
+  border-color: var(--accent);
+}
+.feature-tag.active-feature {
+  background: var(--accent);
+  color: #0d1117;
+  border-color: var(--accent);
+}
+.feature-tag:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Main Chat Area
+   ============================================================ */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+#chat-header {
+  display: none;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#chat-header .chat-header-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+@media (max-width: 768px) {
+  #chat-header {
+    display: flex;
+  }
+}
+
+#chat-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2xl) 0;
+}
+#chat-inner {
+  max-width: var(--chat-max-w);
+  margin: 0 auto;
+  padding: 0 var(--space-xl);
+}
+
+/* ============================================================
+   Empty State — Signature Element
+   A terminal-inspired log-pattern visual that immediately
+   communicates "log analysis tool."
+   ============================================================ */
+#empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  text-align: center;
+}
+
+.empty-state-visual {
+  margin-bottom: var(--space-xl);
+  position: relative;
+}
+
+/* Terminal window frame */
+.terminal-frame {
+  width: 420px;
+  max-width: 90vw;
+  background: var(--bg-deeper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  text-align: left;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--space-md);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border-light);
+}
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.terminal-dot.red { background: #ff5f56; }
+.terminal-dot.yellow { background: #ffbd2e; }
+.terminal-dot.green { background: #27c93f; }
+
+.terminal-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+  font-family: var(--font-mono);
+}
+
+.terminal-body {
+  padding: var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-dim);
+}
+
+.terminal-line {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.terminal-line .prompt { color: var(--success); }
+.terminal-line .cmd { color: var(--text); }
+.terminal-line .highlight { color: var(--accent); }
+.terminal-line .dim { color: var(--text-muted); }
+.terminal-line .error-text { color: var(--error); }
+
+/* Scan animation for the last line */
+@keyframes scan-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+.terminal-line.scanning {
+  animation: scan-pulse 1.5s ease-in-out infinite;
+}
+
+.empty-state-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: var(--space-sm);
+}
+
+.empty-state-desc {
+  font-size: 14px;
+  color: var(--text-dim);
+  max-width: 460px;
+  line-height: 1.7;
+}
+
+.empty-state-hints {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.empty-state-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all .15s;
+}
+.empty-state-hint:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(45, 212, 191, 0.08);
+}
+.empty-state-hint:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.empty-state-hint .hint-key {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--bg-deeper);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   Messages
+   ============================================================ */
+.msg-row {
+  display: flex;
+  margin-bottom: var(--space-xl);
+  gap: var(--space-md);
+}
+.msg-row.user {
+  flex-direction: row-reverse;
+}
+
+.msg-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.msg-row.user .msg-avatar {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+}
+.msg-row.assistant .msg-avatar {
+  background: linear-gradient(135deg, var(--accent), var(--accent-sub));
+  color: var(--bg-deeper);
+  font-weight: 700;
+}
+
+.msg-bubble {
+  max-width: 100%;
+  line-height: 1.65;
+  font-size: 15px;
+  min-width: 0;
+}
+
+.msg-row.user .msg-bubble {
+  background: var(--bg-raised);
+  padding: 12px 16px;
+  border-radius: var(--radius) var(--radius) 4px var(--radius);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.msg-row.assistant .msg-bubble {
+  padding: 2px 0;
+  color: var(--text);
+}
+
+.msg-row.assistant .msg-bubble p {
+  margin-bottom: 10px;
+}
+.msg-row.assistant .msg-bubble p:last-child {
+  margin-bottom: 0;
+}
+
+/* ============================================================
+   Special Blocks (inside assistant bubbles)
+   ============================================================ */
+
+/* Thinking block — amber left border, terminal-like label */
+.thinking-block {
+  background: var(--bg-raised);
+  border-left: 3px solid var(--warn);
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.thinking-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--warn);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.thinking-text {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* Tool call block — blue left border */
+.tool-call-block {
+  background: var(--bg-raised);
+  border-left: 3px solid var(--accent-sub);
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  cursor: pointer;
+}
+.tool-call-block summary {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-sub);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.tool-call-block summary::-webkit-details-marker { display: none; }
+.tool-call-block summary .tool-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgba(6, 182, 212, 0.12);
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+.tool-call-block summary .tool-args {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-call-body {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--bg-deeper);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 240px;
+  overflow-y: auto;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* Tool result block — green left border */
+.tool-result-block {
+  background: var(--bg-raised);
+  border-left: 3px solid var(--success);
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.tool-result-block summary {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--success);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.tool-result-block summary::-webkit-details-marker { display: none; }
+.tool-result-block summary .tool-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgba(52, 211, 153, 0.12);
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+.tool-result-body {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--bg-deeper);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 240px;
+  overflow-y: auto;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* Error block */
+.error-block {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: var(--radius-sm);
+  color: var(--error);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   Markdown / Code in Messages
+   ============================================================ */
+.msg-bubble code {
+  background: var(--bg-raised);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  border: 1px solid var(--border-light);
+}
+.msg-bubble pre {
+  background: var(--bg-deeper);
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+}
+.msg-bubble pre code {
+  background: none;
+  padding: 0;
+  border: none;
+}
+.msg-bubble ul, .msg-bubble ol {
+  margin: 10px 0;
+  padding-left: 24px;
+}
+.msg-bubble li {
+  margin-bottom: 4px;
+}
+.msg-bubble a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.msg-bubble a:hover {
+  text-decoration: underline;
+}
+.msg-bubble strong {
+  font-weight: 600;
+}
+
+/* Cursor blink */
+.cursor-blink {
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  background: var(--accent);
+  animation: blink 0.8s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  border-radius: 1px;
+}
 @keyframes blink { 50% { opacity: 0; } }
 
-/* ===== Input Area ===== */
-#input-area { padding: 16px 24px 20px; border-top: 1px solid var(--border); }
-#input-inner { max-width: 800px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
-#input-box { flex: 1; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; color: var(--text); font-size: 15px; font-family: var(--font); resize: none; min-height: 48px; max-height: 200px; outline: none; }
-#input-box:focus { border-color: var(--accent); }
-#send-btn { width: 40px; height: 40px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-#send-btn:hover { background: var(--accent-hover); }
-#send-btn:disabled { opacity: 0.4; cursor: default; }
-#feature-select { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; color: var(--text); font-size: 13px; outline: none; max-width: 160px; }
+/* ============================================================
+   Feature Selection — Button Bar
+   ============================================================ */
+#feature-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 0 10px 0;
+  max-width: var(--chat-max-w);
+  margin: 0 auto;
+}
+.feature-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all .12s;
+  user-select: none;
+  white-space: nowrap;
+}
+.feature-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(45, 212, 191, 0.06);
+}
+.feature-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.feature-btn.active {
+  border-color: var(--accent);
+  background: rgba(45, 212, 191, 0.12);
+  color: var(--accent);
+  font-weight: 500;
+}
+.feature-btn.auto-btn {
+  border-color: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.feature-btn.auto-btn.active {
+  border-color: var(--border);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-weight: 400;
+}
 
-/* ===== Empty State ===== */
-#empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); gap: 16px; }
-#empty-state h1 { font-size: 28px; color: var(--text); }
-#empty-state p { font-size: 15px; max-width: 500px; text-align: center; line-height: 1.6; }
+/* ============================================================
+   Input Area
+   ============================================================ */
+#input-area {
+  padding: var(--space-lg) var(--space-xl) var(--space-xl);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+#input-inner {
+  max-width: var(--chat-max-w);
+  margin: 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
 
-/* ===== Scrollbar ===== */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+#input-box {
+  flex: 1;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--font);
+  resize: none;
+  min-height: 46px;
+  max-height: 180px;
+  outline: none;
+  line-height: 1.5;
+  transition: border-color .15s, box-shadow .15s;
+}
+#input-box:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.12);
+}
+#input-box::placeholder {
+  color: var(--text-muted);
+}
+
+#send-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent);
+  color: #0d1117;
+  font-size: 17px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, transform .1s;
+  line-height: 1;
+}
+#send-btn:hover {
+  background: var(--accent-hover);
+  transform: scale(1.05);
+}
+#send-btn:focus-visible {
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.3);
+}
+#send-btn:active {
+  transform: scale(0.95);
+}
+#send-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  transform: none;
+}
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ============================================================
+   Responsive — mobile
+   ============================================================ */
+#sidebar-toggle {
+  display: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .12s, color .12s;
+}
+#sidebar-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+}
+
+@media (max-width: 768px) {
+  #sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+  }
+  #sidebar.open {
+    transform: translateX(0);
+  }
+  #sidebar-overlay.open {
+    display: block;
+  }
+  #sidebar-toggle {
+    display: inline-flex;
+  }
+  #main {
+    width: 100%;
+  }
+  #chat-inner, #input-inner {
+    padding: 0 var(--space-lg);
+  }
+  #input-area {
+    padding: var(--space-md) var(--space-lg) var(--space-lg);
+  }
+  .terminal-frame {
+    width: 100%;
+  }
+  .empty-state-hints {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ============================================================
+   Reduced Motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .terminal-line.scanning {
+    animation: none;
+    opacity: 0.5;
+  }
+  #send-btn:hover {
+    transform: none;
+  }
+  #send-btn:active {
+    transform: none;
+  }
+  .cursor-blink {
+    animation: none;
+    opacity: 1;
+  }
+}
 </style>
 </head>
 <body>
 
-<!-- Sidebar -->
+<!-- ============================================================
+     Responsive — mobile sidebar toggle
+     ============================================================ -->
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- ============================================================
+     Sidebar
+     ============================================================ -->
 <div id="sidebar">
-  <div id="sidebar-header"><h2>💬 Hilog Agent</h2></div>
-  <button id="new-chat-btn">＋ 新建对话</button>
+  <div id="sidebar-header">
+    <div class="logo-icon">H</div>
+    <h2>Hilog Agent</h2>
+  </div>
+  <button id="new-chat-btn" onclick="newChat()">＋ 新建对话</button>
   <div id="session-list"></div>
   <details id="features-list" open>
-    <summary>📋 Features</summary>
-    <div id="feature-tags">加载中...</div>
+    <summary>Features</summary>
+    <div class="feature-tags-wrap" id="feature-tags">加载中...</div>
   </details>
-  <div id="sidebar-footer">v0.1.0 · FastAPI + PyQt</div>
+  <div id="sidebar-footer">v0.1.0 · hilog排障助手</div>
 </div>
 
-<!-- Main Chat -->
+<!-- ============================================================
+     Main Chat
+     ============================================================ -->
 <div id="main">
+  <div id="chat-header">
+    <button id="sidebar-toggle" onclick="toggleSidebar()" aria-label="切换侧边栏">☰</button>
+    <span class="chat-header-title">Hilog Agent</span>
+  </div>
   <div id="chat-container">
     <div id="chat-inner">
+      <!-- Empty State: Signature Element -->
       <div id="empty-state">
-        <h1>Hilog Agent</h1>
-        <p>系统排障助手 — 支持特征问答、hilog 日志分析、模块知识生成。输入问题开始对话。</p>
-        <p style="font-size:12px;color:var(--text-dim)">支持 <code>--feature camera_capture</code> 指定特征</p>
+        <div class="empty-state-visual">
+          <div class="terminal-frame">
+            <div class="terminal-header">
+              <span class="terminal-dot red"></span>
+              <span class="terminal-dot yellow"></span>
+              <span class="terminal-dot green"></span>
+              <span class="terminal-title">hilog-agent@analyze ~ %</span>
+            </div>
+            <div class="terminal-body">
+              <div class="terminal-line"><span class="prompt">$</span> <span class="cmd">system-triage --feature <span class="highlight">camera_capture</span></span></div>
+              <div class="terminal-line"><span class="dim">│  Analyzing feature: camera_capture</span></div>
+              <div class="terminal-line"><span class="dim">│  Scanning call chains...</span></div>
+              <div class="terminal-line"><span class="dim">│  <span class="highlight">3</span> modules matched</span></div>
+              <div class="terminal-line"><span class="prompt">$</span> <span class="cmd">log-analyze ./hilog.zip --time <span class="highlight">14:35:22</span></span></div>
+              <div class="terminal-line"><span class="dim">│  Parsing 12,847 events...</span></div>
+              <div class="terminal-line"><span class="dim">│  <span class="error-text">⚠ 2 failure patterns detected</span></span></div>
+              <div class="terminal-line scanning"><span class="prompt">$</span> <span class="cmd">_</span></div>
+            </div>
+          </div>
+        </div>
+        <h2 class="empty-state-title">系统排障助手</h2>
+        <p class="empty-state-desc">
+          分析 hilog 日志、回答系统特征问题、定位故障根因。
+          支持拖拽日志文件到窗口内进行分析。
+        </p>
+        <div class="empty-state-hints">
+          <span class="empty-state-hint" tabindex="0" role="button" onclick="fillHint('camera_capture 启动流程是什么？')" onkeydown="if(event.key==='Enter')fillHint('camera_capture 启动流程是什么？')">
+            <span class="hint-key">?</span> 特征问答
+          </span>
+          <span class="empty-state-hint" tabindex="0" role="button" onclick="fillHint('analyze-log: 拖拽日志文件到此处')" onkeydown="if(event.key==='Enter')fillHint('analyze-log: 拖拽日志文件到此处')">
+            <span class="hint-key">📄</span> 日志分析
+          </span>
+          <span class="empty-state-hint" tabindex="0" role="button" onclick="fillHint('--feature camera_capture 有哪些故障模式？')" onkeydown="if(event.key==='Enter')fillHint('--feature camera_capture 有哪些故障模式？')">
+            <span class="hint-key">🔍</span> 故障诊断
+          </span>
+        </div>
       </div>
     </div>
   </div>
+
   <div id="input-area">
+    <div id="feature-bar"></div>
     <div id="input-inner">
-      <select id="feature-select"><option value="">自动匹配特征</option></select>
-      <textarea id="input-box" rows="1" placeholder="输入问题… (Enter 发送, Shift+Enter 换行)" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,200)+'px'"></textarea>
+      <textarea id="input-box" rows="1" placeholder="输入问题… (Enter 发送, Shift+Enter 换行)" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,180)+'px'"></textarea>
       <button id="send-btn" title="发送">➤</button>
     </div>
   </div>
 </div>
 
 <script>
-// ============================================
+// ============================================================
 // State
-// ============================================
+// ============================================================
 const API = '';  // same-origin
 let currentSessionId = 'default';
 let sessions = {};
 let isStreaming = false;
 let features = [];
+let selectedFeature = null;
 
-// ============================================
+// ============================================================
 // Init
-// ============================================
+// ============================================================
 async function init() {
   await loadFeatures();
   await loadSessions();
@@ -153,39 +980,45 @@ async function init() {
 }
 init();
 
-// ============================================
+// ============================================================
 // Features
-// ============================================
+// ============================================================
 async function loadFeatures() {
   try {
     const r = await fetch(API + '/api/features');
     const data = await r.json();
     features = data.features || [];
     renderFeatureTags();
-    renderFeatureSelect();
+    renderFeatureBar();
   } catch(e) { console.error('loadFeatures', e); }
 }
 
 function renderFeatureTags() {
   const el = document.getElementById('feature-tags');
   el.innerHTML = features.map(f =>
-    `<span class="feature-tag" onclick="switchFeature('${f}')">${f}</span>`
-  ).join('') || '<span style="font-size:11px;color:var(--text-dim)">无特征</span>';
+    `<span class="feature-tag${selectedFeature === f ? ' active-feature' : ''}" tabindex="0" role="button" onclick="switchFeature('${f}')" onkeydown="if(event.key==='Enter')switchFeature('${f}')">${f}</span>`
+  ).join('') || '<span style="font-size:11px;color:var(--text-muted)">无特征</span>';
 }
 
-function renderFeatureSelect() {
-  const sel = document.getElementById('feature-select');
-  sel.innerHTML = '<option value="">自动匹配特征</option>' +
-    features.map(f => `<option value="${f}">${f}</option>`).join('');
+function renderFeatureBar() {
+  const bar = document.getElementById('feature-bar');
+  if (!bar) return;
+  const allHtml = '<button class="feature-btn auto-btn' + (selectedFeature === null ? ' active' : '') + '" onclick="switchFeature(null)">自动</button>';
+  const featHtml = features.map(f =>
+    '<button class="feature-btn' + (selectedFeature === f ? ' active' : '') + '" onclick="switchFeature(\'' + f + '\')">' + f + '</button>'
+  ).join('');
+  bar.innerHTML = allHtml + featHtml;
 }
 
 function switchFeature(name) {
-  document.getElementById('feature-select').value = name;
+  selectedFeature = name;
+  renderFeatureBar();
+  renderFeatureTags();
 }
 
-// ============================================
+// ============================================================
 // Sessions
-// ============================================
+// ============================================================
 async function loadSessions() {
   try {
     const r = await fetch(API + '/api/sessions');
@@ -202,17 +1035,31 @@ function renderSessionList() {
   if (!ids.includes('default')) ids.unshift('default');
   if (!ids.includes(currentSessionId)) ids.push(currentSessionId);
   el.innerHTML = ids.map(id =>
-    `<div class="session-item${id === currentSessionId ? ' active' : ''}" onclick="switchSession('${id}')">
+    `<div class="session-item${id === currentSessionId ? ' active' : ''}" tabindex="0" role="button" onclick="switchSession('${id}')" onkeydown="if(event.key==='Enter')switchSession('${id}')">
       💬 ${id === 'default' ? '默认对话' : 'Session ' + id.slice(0,8)}
-      <span style="float:right;font-size:11px">${sessions[id] || 0}</span>
+      <span class="msg-count">${sessions[id] || 0}</span>
     </div>`
   ).join('');
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('open');
+}
+
+function fillHint(text) {
+  const box = document.getElementById('input-box');
+  box.value = text;
+  box.focus();
+  box.style.height = '';
+  box.style.height = Math.min(box.scrollHeight, 180) + 'px';
 }
 
 function switchSession(id) {
   currentSessionId = id;
   renderSessionList();
-  // Reload messages for this session — for MVP just clear display
   const inner = document.getElementById('chat-inner');
   const empty = document.getElementById('empty-state');
   inner.innerHTML = '';
@@ -225,15 +1072,17 @@ async function newChat() {
   sessions[id] = 0;
   currentSessionId = id;
   renderSessionList();
-  document.getElementById('chat-inner').innerHTML = '';
-  document.getElementById('chat-inner').appendChild(document.getElementById('empty-state'));
-  document.getElementById('empty-state').style.display = 'flex';
+  const inner = document.getElementById('chat-inner');
+  const empty = document.getElementById('empty-state');
+  inner.innerHTML = '';
+  inner.appendChild(empty);
+  empty.style.display = 'flex';
   document.getElementById('input-box').focus();
 }
 
-// ============================================
+// ============================================================
 // Send Message
-// ============================================
+// ============================================================
 const inputBox = document.getElementById('input-box');
 const sendBtn = document.getElementById('send-btn');
 
@@ -251,7 +1100,7 @@ async function sendMessage() {
   const question = inputBox.value.trim();
   if (!question) return;
 
-  const feature = document.getElementById('feature-select').value || null;
+  const feature = selectedFeature;
   inputBox.value = '';
   inputBox.style.height = '';
 
@@ -331,10 +1180,14 @@ function handleEvent(type, data, bubble) {
   switch (type) {
     case 'thinking': {
       let block = bubble.querySelector('.thinking-block:last-child');
+      // If the last thinking block is already finalized, start a new one
+      if (block && block.querySelector('.thinking-label').textContent.includes('思考过程')) {
+        block = null;
+      }
       if (!block) {
         block = document.createElement('div');
         block.className = 'thinking-block';
-        block.innerHTML = '<div class="thinking-label">🤔 思考中...</div><span class="thinking-text"></span>';
+        block.innerHTML = '<div class="thinking-label"><span>⟐</span> 思考中...</div><span class="thinking-text" style="display:none"></span>';
         bubble.insertBefore(block, bubble.lastElementChild);
       }
       const span = block.querySelector('.thinking-text');
@@ -343,27 +1196,32 @@ function handleEvent(type, data, bubble) {
     }
 
     case 'tool_call': {
+      _finalizeThinking(bubble);
       const block = document.createElement('details');
       block.className = 'tool-call-block';
-      block.innerHTML = `<summary><span class="tool-args">${data.tool}(${JSON.stringify(data.args)})</span></summary>
-        <div class="tool-call-body">参数: ${JSON.stringify(data.args, null, 2)}</div>`;
+      const argsPreview = JSON.stringify(data.args).length > 60
+        ? JSON.stringify(data.args).slice(0, 58) + '…'
+        : JSON.stringify(data.args);
+      const safePreview = escapeHtml(argsPreview);
+      block.innerHTML = `<summary><span class="tool-name">${escapeHtml(data.tool)}</span> <span class="tool-args">${safePreview}</span></summary>
+        <div class="tool-call-body">${escapeHtml(JSON.stringify(data.args, null, 2))}</div>`;
       block.open = true;
       bubble.insertBefore(block, bubble.lastElementChild);
       break;
     }
 
     case 'tool_result': {
+      _finalizeThinking(bubble);
       const block = document.createElement('details');
       block.className = 'tool-result-block';
-      const resultPreview = data.result ? data.result.slice(0, 200) : '(空)';
-      block.innerHTML = `<summary>${data.tool} 返回</summary>
+      block.innerHTML = `<summary><span class="tool-name">${escapeHtml(data.tool)}</span> <span class="tool-args">返回结果</span></summary>
         <div class="tool-result-body">${escapeHtml(data.result || '')}</div>`;
       bubble.insertBefore(block, bubble.lastElementChild);
       break;
     }
 
     case 'message': {
-      // Streaming content
+      _finalizeThinking(bubble);
       const cursor = bubble.querySelector('.cursor-blink');
       const node = document.createTextNode(data.content || '');
       if (cursor) {
@@ -375,14 +1233,14 @@ function handleEvent(type, data, bubble) {
     }
 
     case 'final_answer': {
-      // Mark existing text nodes done — already rendered via message events
+      _finalizeThinking(bubble);
       break;
     }
 
     case 'error': {
       const block = document.createElement('div');
       block.className = 'error-block';
-      block.textContent = '❌ ' + (data.message || '未知错误');
+      block.textContent = '✕ ' + (data.message || '未知错误');
       bubble.insertBefore(block, bubble.lastElementChild);
       break;
     }
@@ -390,15 +1248,28 @@ function handleEvent(type, data, bubble) {
   scrollToBottom();
 }
 
-// ============================================
+// ============================================================
 // Helpers
-// ============================================
+// ============================================================
+function _finalizeThinking(bubble) {
+  /* Reveal accumulated thinking text and update label. */
+  const block = bubble.querySelector('.thinking-block:last-child');
+  if (!block) return;
+  const span = block.querySelector('.thinking-text');
+  if (!span) return;
+  if (span.textContent.trim()) {
+    span.style.display = '';
+    const label = block.querySelector('.thinking-label');
+    if (label) label.innerHTML = '<span>⟐</span> 思考过程';
+  }
+}
+
 function createMsgRow(role, content) {
   const row = document.createElement('div');
   row.className = 'msg-row ' + role;
   const avatar = document.createElement('div');
   avatar.className = 'msg-avatar';
-  avatar.textContent = role === 'user' ? '👤' : '🤖';
+  avatar.textContent = role === 'user' ? '👤' : 'H';
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
   if (content) bubble.textContent = content;
@@ -425,8 +1296,6 @@ chatContainer.addEventListener('drop', async e => {
   e.preventDefault();
   const files = Array.from(e.dataTransfer.files);
   if (files.length === 0) return;
-  // For a real desktop app, we'd use a file picker or the PyQt bridge.
-  // For now, show a message.
   inputBox.value = `analyze-log: ${files.map(f => f.name).join(', ')}`;
   inputBox.focus();
 });

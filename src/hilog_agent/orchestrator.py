@@ -160,6 +160,17 @@ def run_react_loop(
 
             content_buf: list[str] = []
             tool_calls_buf: dict[int, dict[str, Any]] = {}
+            thinking_buf: list[str] = []
+            _MIN_THINKING_BATCH = 30
+
+            def _flush_thinking() -> Generator[SSEEvent, None, None]:
+                """Yield buffered thinking tokens as a single event."""
+                nonlocal thinking_buf
+                if thinking_buf:
+                    text = "".join(thinking_buf)
+                    thinking_buf = []
+                    if text.strip():
+                        yield SSEEvent(event="thinking", data={"text": text})
 
             for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
@@ -168,20 +179,20 @@ def run_react_loop(
 
                 # Thinking / reasoning tokens (some models emit these)
                 if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-                    yield SSEEvent(
-                        event="thinking",
-                        data={"text": delta.reasoning_content},
-                    )
+                    thinking_buf.append(delta.reasoning_content)
+                    if len("".join(thinking_buf)) >= _MIN_THINKING_BATCH:
+                        yield from _flush_thinking()
 
-                # Regular content
+                # Regular content — flush any pending thinking first
                 if delta.content:
+                    yield from _flush_thinking()
                     content_buf.append(delta.content)
                     yield SSEEvent(
                         event="message",
                         data={"role": "assistant", "content": delta.content},
                     )
 
-                # Tool calls
+                # Tool calls — flush any pending thinking first
                 if delta.tool_calls:
                     for tc in delta.tool_calls:
                         idx = tc.index
@@ -200,7 +211,8 @@ def run_react_loop(
                                     tc.function.arguments
                                 )
 
-            # After stream ends — process any tool calls
+            # After stream ends — flush remaining thinking, then process tool calls
+            yield from _flush_thinking()
             if tool_calls_buf:
                 logger.info(
                     "round %d: LLM requested %d tool call(s)", round_idx + 1, len(tool_calls_buf)
