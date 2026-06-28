@@ -24,6 +24,9 @@ modules:
   - name: camera_ui
     yaml_path: modules/camera_ui.yaml
     responsibility: 拍照入口
+  - name: camera_framework
+    yaml_path: modules/camera_framework.yaml
+    responsibility: 相机会话管理
 call_chains:
   - name: normal_capture
     description: 正常拍照链路
