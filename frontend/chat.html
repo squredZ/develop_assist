@@ -474,8 +474,34 @@ body {
   margin-bottom: 6px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
+
+/* Spinner — animated rotating ring */
+.thinking-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--warn);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.thinking-done {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Existing thinking text styles */
 .thinking-text {
   color: var(--text-dim);
   font-style: italic;
@@ -871,6 +897,11 @@ body {
     animation: none;
     opacity: 1;
   }
+  .thinking-spinner {
+    animation: none;
+    border-color: var(--border);
+    border-top-color: var(--text-muted);
+  }
 }
 </style>
 </head>
@@ -1184,13 +1215,13 @@ function handleEvent(type, data, bubble) {
       if (!block) {
         block = document.createElement('div');
         block.className = 'thinking-block';
-        block.innerHTML = '<div class="thinking-label"><span>⟐</span> 思考中...</div><span class="thinking-text"></span>';
+        block.innerHTML = '<div class="thinking-label"><span class="thinking-spinner"></span> 思考中...</div><span class="thinking-text"></span>';
         bubble.insertBefore(block, bubble.lastElementChild);
       } else {
         // Reuse the same block across all rounds — reset label if finalized
         const label = block.querySelector('.thinking-label');
         if (label && label.textContent.includes('思考过程')) {
-          label.innerHTML = '<span>⟐</span> 思考中...';
+          label.innerHTML = '<span class="thinking-spinner"></span> 思考中...';
         }
       }
       const span = block.querySelector('.thinking-text');
@@ -1271,7 +1302,7 @@ function _markThinkingDone(bubble) {
   if (!block) return;
   const label = block.querySelector('.thinking-label');
   if (label && label.textContent.includes('思考中')) {
-    label.innerHTML = '<span>⟐</span> 思考过程';
+    label.innerHTML = '<span class="thinking-done"></span> 思考过程';
   }
 }
 

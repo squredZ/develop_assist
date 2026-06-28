@@ -12,12 +12,24 @@ block_cipher = None
 # Collect data files
 datas = [
     ("frontend/chat.html", "frontend"),
+    ("agent.yaml", "."),
     ("prompts/module_generation.md", "prompts"),
     ("prompts/feature_update.md", "prompts"),
 ]
 
+# Collect entire features directory
+features_datas = []
+features_root = Path("fixtures/features")
+if features_root.is_dir():
+    for f in features_root.rglob("*"):
+        if f.is_file():
+            rel_parent = f.parent.relative_to("fixtures")
+            features_datas.append((str(f), str(Path("fixtures") / rel_parent)))
+datas.extend(features_datas)
+
 # Hidden imports
 hiddenimports = [
+    "hilog_agent.server",
     "uvicorn.logging",
     "uvicorn.loops",
     "uvicorn.loops.auto",
@@ -42,7 +54,7 @@ hiddenimports = [
 
 a = Analysis(
     ["frontend/main.py"],
-    pathex=[],
+    pathex=[".", "src"],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
@@ -72,7 +84,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,       # No console window
+    console=True,       # Show console window for debugging
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,

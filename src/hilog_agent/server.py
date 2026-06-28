@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,13 +26,38 @@ from hilog_agent.renderers.json_renderer import render_json
 from hilog_agent.store import FeatureStore
 
 logger = logging.getLogger(__name__)
-setup_logging()
 
 # ---------------------------------------------------------------
-# Global state (single-user desktop app — no concurrency needed)
+# Bundle root detection (works in dev and PyInstaller)
 # ---------------------------------------------------------------
 
-_config = load_config("agent.yaml")
+if hasattr(sys, "_MEIPASS"):
+    _BUNDLE_ROOT = Path(sys._MEIPASS)
+    # _MEIPASS is read-only — use exe directory for writable files
+    _LOG_DIR = Path(sys.executable).parent
+else:
+    _BUNDLE_ROOT = Path(__file__).resolve().parent.parent.parent
+    _LOG_DIR = _BUNDLE_ROOT
+
+# Setup logging early with file output for diagnostics
+setup_logging(verbose=not bool(os.environ.get("HILOG_QUIET")), log_file=_LOG_DIR / "hilog_agent.log")
+
+# ---------------------------------------------------------------
+# Global state
+# ---------------------------------------------------------------
+
+# Resolve config path relative to bundle root
+_config_path = _BUNDLE_ROOT / "agent.yaml"
+if not _config_path.exists():
+    _config_path = Path("agent.yaml")  # fallback to CWD
+
+# Load config and resolve feature paths
+_config = load_config(_config_path)
+# Resolve features_dir relative to bundle root if it's a relative path
+_features_dir = Path(_config.features_dir)
+if not _features_dir.is_absolute():
+    _features_dir = (_BUNDLE_ROOT / _config.features_dir).resolve()
+    _config.features_dir = str(_features_dir)
 _store = FeatureStore(_config)
 
 # In-memory session store (MVP: survives until restart)
@@ -64,7 +91,7 @@ app.add_middleware(
 # ---------------------------------------------------------------
 # Serve the frontend root so PyQt loads from http:// not file://
 # ---------------------------------------------------------------
-_frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
+_frontend_dir = _BUNDLE_ROOT / "frontend"
 _chat_html = _frontend_dir / "chat.html"
 
 
