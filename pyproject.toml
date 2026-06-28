@@ -9,6 +9,11 @@ dependencies = [
     "click>=8.0",
     "openai>=1.0",
     "httpx>=0.25",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "sse-starlette>=1.0",
+    "PyQt6>=6.5",
+    "PyQt6-WebEngine>=6.5",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +26,7 @@ dev = [
 
 [project.scripts]
 agent = "hilog_agent.cli:main"
+hilog-gui = "frontend.main:main"
 
 [build-system]
 requires = ["hatchling"]

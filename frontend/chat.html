@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hilog Agent</title>
+<style>
+/* ===== Reset & Layout ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --sidebar-w: 280px;
+  --bg: #212121; --bg-chat: #2f2f2f;
+  --bg-sidebar: #171717; --bg-input: #3a3a3a;
+  --text: #ececec; --text-dim: #b4b4b4; --text-sidebar: #a0a0a0;
+  --accent: #10a37f; --accent-hover: #1a7f64;
+  --user-bubble: #2f2f2f; --assistant-bubble: transparent;
+  --thinking-bg: #1e1e1e; --tool-bg: #252525;
+  --border: #4a4a4a; --radius: 12px; --radius-sm: 6px;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Consolas', monospace;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
+
+/* ===== Sidebar ===== */
+#sidebar { width: var(--sidebar-w); background: var(--bg-sidebar); display: flex; flex-direction: column; border-right: 1px solid var(--border); flex-shrink: 0; }
+#sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+#sidebar-header h2 { font-size: 15px; font-weight: 600; color: var(--text); }
+#new-chat-btn { flex: 1; margin: 10px 12px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text); cursor: pointer; font-size: 13px; text-align: left; }
+#new-chat-btn:hover { background: var(--bg-input); }
+#session-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
+.session-item { padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text-sidebar); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-item:hover, .session-item.active { background: var(--bg-input); color: var(--text); }
+#sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim); }
+#features-list { padding: 8px 12px; border-top: 1px solid var(--border); }
+#features-list summary { font-size: 12px; color: var(--text-dim); cursor: pointer; padding: 4px 0; }
+.feature-tag { display: inline-block; padding: 2px 8px; margin: 2px; border-radius: 10px; background: var(--bg-input); font-size: 11px; cursor: pointer; color: var(--text-dim); }
+.feature-tag:hover { background: var(--accent); color: #fff; }
+
+/* ===== Main Chat Area ===== */
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#chat-container { flex: 1; overflow-y: auto; padding: 20px 0; }
+#chat-inner { max-width: 800px; margin: 0 auto; padding: 0 24px; }
+
+/* ===== Messages ===== */
+.msg-row { display: flex; margin-bottom: 24px; gap: 12px; }
+.msg-row.user { flex-direction: row-reverse; }
+.msg-avatar { width: 32px; height: 32px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.msg-row.user .msg-avatar { background: #6b4ce6; }
+.msg-row.assistant .msg-avatar { background: var(--accent); }
+.msg-bubble { max-width: 100%; line-height: 1.6; font-size: 15px; }
+.msg-row.user .msg-bubble { background: var(--user-bubble); padding: 12px 16px; border-radius: var(--radius) var(--radius) 4px var(--radius); border: 1px solid var(--border); }
+.msg-row.assistant .msg-bubble { padding: 4px 0; }
+
+/* ===== Special blocks (inside assistant bubbles) ===== */
+.thinking-block { background: var(--thinking-bg); border-left: 2px solid #f0c040; padding: 10px 14px; margin: 8px 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 13px; color: var(--text-dim); font-style: italic; }
+.thinking-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #f0c040; margin-bottom: 4px; font-style: normal; font-weight: 600; }
+
+.tool-call-block { background: var(--tool-bg); border-left: 2px solid #4a9eff; padding: 10px 14px; margin: 8px 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; cursor: pointer; }
+.tool-call-block summary { font-size: 13px; font-weight: 600; color: #4a9eff; list-style: none; display: flex; align-items: center; gap: 6px; }
+.tool-call-block summary::before { content: '🔧'; font-size: 12px; }
+.tool-call-block summary .tool-args { font-weight: 400; color: var(--text-dim); font-size: 12px; }
+.tool-call-body { margin-top: 8px; padding: 8px; background: var(--bg); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; overflow-x: auto; max-height: 200px; overflow-y: auto; }
+
+.tool-result-block { background: var(--tool-bg); border-left: 2px solid #6ee7b7; padding: 10px 14px; margin: 8px 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.tool-result-block summary { font-size: 13px; font-weight: 600; color: #6ee7b7; list-style: none; display: flex; align-items: center; gap: 6px; }
+.tool-result-block summary::before { content: '✅'; font-size: 12px; }
+.tool-result-body { margin-top: 8px; font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; overflow-x: auto; max-height: 200px; overflow-y: auto; color: var(--text-dim); }
+
+.error-block { background: #3d1717; border: 1px solid #c0392b; padding: 12px 16px; margin: 8px 0; border-radius: var(--radius-sm); color: #e74c3c; font-size: 13px; }
+
+/* ===== Markdown in messages ===== */
+.msg-bubble code { background: var(--bg-input); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 13px; }
+.msg-bubble pre { background: #1a1a1a; padding: 14px; border-radius: var(--radius-sm); overflow-x: auto; margin: 8px 0; }
+.msg-bubble pre code { background: none; padding: 0; }
+.msg-bubble p { margin-bottom: 8px; }
+.msg-bubble p:last-child { margin-bottom: 0; }
+.msg-bubble ul, .msg-bubble ol { margin: 8px 0; padding-left: 24px; }
+.cursor-blink { display: inline-block; width: 8px; height: 16px; background: var(--text); animation: blink 1s step-end infinite; vertical-align: middle; margin-left: 2px; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ===== Input Area ===== */
+#input-area { padding: 16px 24px 20px; border-top: 1px solid var(--border); }
+#input-inner { max-width: 800px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
+#input-box { flex: 1; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; color: var(--text); font-size: 15px; font-family: var(--font); resize: none; min-height: 48px; max-height: 200px; outline: none; }
+#input-box:focus { border-color: var(--accent); }
+#send-btn { width: 40px; height: 40px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+#send-btn:hover { background: var(--accent-hover); }
+#send-btn:disabled { opacity: 0.4; cursor: default; }
+#feature-select { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; color: var(--text); font-size: 13px; outline: none; max-width: 160px; }
+
+/* ===== Empty State ===== */
+#empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); gap: 16px; }
+#empty-state h1 { font-size: 28px; color: var(--text); }
+#empty-state p { font-size: 15px; max-width: 500px; text-align: center; line-height: 1.6; }
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <div id="sidebar-header"><h2>💬 Hilog Agent</h2></div>
+  <button id="new-chat-btn">＋ 新建对话</button>
+  <div id="session-list"></div>
+  <details id="features-list" open>
+    <summary>📋 Features</summary>
+    <div id="feature-tags">加载中...</div>
+  </details>
+  <div id="sidebar-footer">v0.1.0 · FastAPI + PyQt</div>
+</div>
+
+<!-- Main Chat -->
+<div id="main">
+  <div id="chat-container">
+    <div id="chat-inner">
+      <div id="empty-state">
+        <h1>Hilog Agent</h1>
+        <p>系统排障助手 — 支持特征问答、hilog 日志分析、模块知识生成。输入问题开始对话。</p>
+        <p style="font-size:12px;color:var(--text-dim)">支持 <code>--feature camera_capture</code> 指定特征</p>
+      </div>
+    </div>
+  </div>
+  <div id="input-area">
+    <div id="input-inner">
+      <select id="feature-select"><option value="">自动匹配特征</option></select>
+      <textarea id="input-box" rows="1" placeholder="输入问题… (Enter 发送, Shift+Enter 换行)" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,200)+'px'"></textarea>
+      <button id="send-btn" title="发送">➤</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================
+// State
+// ============================================
+const API = '';  // same-origin
+let currentSessionId = 'default';
+let sessions = {};
+let isStreaming = false;
+let features = [];
+
+// ============================================
+// Init
+// ============================================
+async function init() {
+  await loadFeatures();
+  await loadSessions();
+  switchSession('default');
+}
+init();
+
+// ============================================
+// Features
+// ============================================
+async function loadFeatures() {
+  try {
+    const r = await fetch(API + '/api/features');
+    const data = await r.json();
+    features = data.features || [];
+    renderFeatureTags();
+    renderFeatureSelect();
+  } catch(e) { console.error('loadFeatures', e); }
+}
+
+function renderFeatureTags() {
+  const el = document.getElementById('feature-tags');
+  el.innerHTML = features.map(f =>
+    `<span class="feature-tag" onclick="switchFeature('${f}')">${f}</span>`
+  ).join('') || '<span style="font-size:11px;color:var(--text-dim)">无特征</span>';
+}
+
+function renderFeatureSelect() {
+  const sel = document.getElementById('feature-select');
+  sel.innerHTML = '<option value="">自动匹配特征</option>' +
+    features.map(f => `<option value="${f}">${f}</option>`).join('');
+}
+
+function switchFeature(name) {
+  document.getElementById('feature-select').value = name;
+}
+
+// ============================================
+// Sessions
+// ============================================
+async function loadSessions() {
+  try {
+    const r = await fetch(API + '/api/sessions');
+    const data = await r.json();
+    sessions = {};
+    for (const s of data.sessions || []) sessions[s.id] = s.message_count || 0;
+    renderSessionList();
+  } catch(e) { console.error('loadSessions', e); }
+}
+
+function renderSessionList() {
+  const el = document.getElementById('session-list');
+  const ids = Object.keys(sessions);
+  if (!ids.includes('default')) ids.unshift('default');
+  if (!ids.includes(currentSessionId)) ids.push(currentSessionId);
+  el.innerHTML = ids.map(id =>
+    `<div class="session-item${id === currentSessionId ? ' active' : ''}" onclick="switchSession('${id}')">
+      💬 ${id === 'default' ? '默认对话' : 'Session ' + id.slice(0,8)}
+      <span style="float:right;font-size:11px">${sessions[id] || 0}</span>
+    </div>`
+  ).join('');
+}
+
+function switchSession(id) {
+  currentSessionId = id;
+  renderSessionList();
+  // Reload messages for this session — for MVP just clear display
+  const inner = document.getElementById('chat-inner');
+  const empty = document.getElementById('empty-state');
+  inner.innerHTML = '';
+  inner.appendChild(empty);
+  empty.style.display = 'flex';
+}
+
+async function newChat() {
+  const id = 'chat_' + Date.now().toString(36);
+  sessions[id] = 0;
+  currentSessionId = id;
+  renderSessionList();
+  document.getElementById('chat-inner').innerHTML = '';
+  document.getElementById('chat-inner').appendChild(document.getElementById('empty-state'));
+  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('input-box').focus();
+}
+
+// ============================================
+// Send Message
+// ============================================
+const inputBox = document.getElementById('input-box');
+const sendBtn = document.getElementById('send-btn');
+
+inputBox.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+sendBtn.addEventListener('click', sendMessage);
+
+async function sendMessage() {
+  if (isStreaming) return;
+  const question = inputBox.value.trim();
+  if (!question) return;
+
+  const feature = document.getElementById('feature-select').value || null;
+  inputBox.value = '';
+  inputBox.style.height = '';
+
+  // Hide empty state
+  const empty = document.getElementById('empty-state');
+  if (empty) empty.style.display = 'none';
+
+  const inner = document.getElementById('chat-inner');
+
+  // Add user bubble
+  const userRow = createMsgRow('user', question);
+  inner.appendChild(userRow);
+  scrollToBottom();
+
+  // Add assistant placeholder
+  const assistantRow = createMsgRow('assistant', '');
+  const bubble = assistantRow.querySelector('.msg-bubble');
+  inner.appendChild(assistantRow);
+
+  // Cursor
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor-blink';
+  bubble.appendChild(cursor);
+
+  isStreaming = true;
+  sendBtn.disabled = true;
+
+  try {
+    const resp = await fetch(API + '/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: currentSessionId, question, feature }),
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          window._lastEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          const eventType = window._lastEvent || 'message';
+          const dataStr = line.slice(6);
+          try {
+            const data = JSON.parse(dataStr);
+            handleEvent(eventType, data, bubble);
+          } catch(e) {}
+        }
+      }
+    }
+  } catch(e) {
+    const errBlock = document.createElement('div');
+    errBlock.className = 'error-block';
+    errBlock.textContent = '连接错误: ' + e.message;
+    bubble.appendChild(errBlock);
+  } finally {
+    cursor.remove();
+    isStreaming = false;
+    sendBtn.disabled = false;
+    sessions[currentSessionId] = (sessions[currentSessionId] || 0) + 1;
+    renderSessionList();
+    scrollToBottom();
+    inputBox.focus();
+  }
+}
+
+function handleEvent(type, data, bubble) {
+  switch (type) {
+    case 'thinking': {
+      let block = bubble.querySelector('.thinking-block:last-child');
+      if (!block) {
+        block = document.createElement('div');
+        block.className = 'thinking-block';
+        block.innerHTML = '<div class="thinking-label">🤔 思考中...</div><span class="thinking-text"></span>';
+        bubble.insertBefore(block, bubble.lastElementChild);
+      }
+      const span = block.querySelector('.thinking-text');
+      span.textContent += data.text || '';
+      break;
+    }
+
+    case 'tool_call': {
+      const block = document.createElement('details');
+      block.className = 'tool-call-block';
+      block.innerHTML = `<summary><span class="tool-args">${data.tool}(${JSON.stringify(data.args)})</span></summary>
+        <div class="tool-call-body">参数: ${JSON.stringify(data.args, null, 2)}</div>`;
+      block.open = true;
+      bubble.insertBefore(block, bubble.lastElementChild);
+      break;
+    }
+
+    case 'tool_result': {
+      const block = document.createElement('details');
+      block.className = 'tool-result-block';
+      const resultPreview = data.result ? data.result.slice(0, 200) : '(空)';
+      block.innerHTML = `<summary>${data.tool} 返回</summary>
+        <div class="tool-result-body">${escapeHtml(data.result || '')}</div>`;
+      bubble.insertBefore(block, bubble.lastElementChild);
+      break;
+    }
+
+    case 'message': {
+      // Streaming content
+      const cursor = bubble.querySelector('.cursor-blink');
+      const node = document.createTextNode(data.content || '');
+      if (cursor) {
+        bubble.insertBefore(node, cursor);
+      } else {
+        bubble.appendChild(node);
+      }
+      break;
+    }
+
+    case 'final_answer': {
+      // Mark existing text nodes done — already rendered via message events
+      break;
+    }
+
+    case 'error': {
+      const block = document.createElement('div');
+      block.className = 'error-block';
+      block.textContent = '❌ ' + (data.message || '未知错误');
+      bubble.insertBefore(block, bubble.lastElementChild);
+      break;
+    }
+  }
+  scrollToBottom();
+}
+
+// ============================================
+// Helpers
+// ============================================
+function createMsgRow(role, content) {
+  const row = document.createElement('div');
+  row.className = 'msg-row ' + role;
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = role === 'user' ? '👤' : '🤖';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  if (content) bubble.textContent = content;
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  return row;
+}
+
+function scrollToBottom() {
+  const container = document.getElementById('chat-container');
+  requestAnimationFrame(() => { container.scrollTop = container.scrollHeight; });
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// Drag-and-drop log files
+const chatContainer = document.getElementById('chat-container');
+chatContainer.addEventListener('dragover', e => { e.preventDefault(); });
+chatContainer.addEventListener('drop', async e => {
+  e.preventDefault();
+  const files = Array.from(e.dataTransfer.files);
+  if (files.length === 0) return;
+  // For a real desktop app, we'd use a file picker or the PyQt bridge.
+  // For now, show a message.
+  inputBox.value = `analyze-log: ${files.map(f => f.name).join(', ')}`;
+  inputBox.focus();
+});
+</script>
+</body>
+</html>
