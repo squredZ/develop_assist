@@ -45,9 +45,9 @@ llm:
 
 orchestrator:
   mode: bounded_react
-  max_tool_calls: 8
-  max_llm_rounds: 4
-  tool_timeout_seconds: 30
+  max_tool_calls: 100
+  max_llm_rounds: 100
+  tool_timeout_seconds: 120
   allowed_tools:
     ask:
       - read_feature

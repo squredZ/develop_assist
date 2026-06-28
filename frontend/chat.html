@@ -969,6 +969,7 @@ let sessions = {};
 let isStreaming = false;
 let features = [];
 let selectedFeature = null;
+let _mdBuffer = '';  // accumulate raw Markdown during streaming
 
 // ============================================================
 // Init
@@ -1224,17 +1225,29 @@ function handleEvent(type, data, bubble) {
 
     case 'message': {
       _markThinkingDone(bubble);
+      // Accumulate raw Markdown text, re-render the full message each time
       const cursor = bubble.querySelector('.cursor-blink');
-      const node = document.createTextNode(data.content || '');
-      if (cursor) {
-        bubble.insertBefore(node, cursor);
-      } else {
-        bubble.appendChild(node);
+      _mdBuffer += data.content || '';
+      // Remove previous md-content blocks, re-render from buffer
+      const oldBlocks = bubble.querySelectorAll('.md-content');
+      oldBlocks.forEach(b => b.remove());
+      const html = renderMarkdown(_mdBuffer);
+      if (html) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'md-content';
+        wrapper.innerHTML = html;
+        if (cursor) {
+          bubble.insertBefore(wrapper, cursor);
+        } else {
+          bubble.appendChild(wrapper);
+        }
       }
       break;
     }
 
     case 'final_answer': {
+      // Clear buffer for next message
+      _mdBuffer = '';
       break;
     }
 
@@ -1260,6 +1273,75 @@ function _markThinkingDone(bubble) {
   if (label && label.textContent.includes('思考中')) {
     label.innerHTML = '<span>⟐</span> 思考过程';
   }
+}
+
+function _sanitizeHtml(html) {
+  /* Strip script tags, event handlers, and javascript: links. */
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/href\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi, 'href="#"')
+    .replace(/src\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi, 'src=""');
+}
+
+function renderMarkdown(text) {
+  /* Convert Markdown text to sanitized HTML (safe for innerHTML). */
+  if (!text) return '';
+  let html = text;
+
+  // Code blocks (``` ... ```) — must be done first to protect their content
+  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const escaped = code
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const langClass = lang ? ` class="language-${lang}"` : '';
+    return `<pre><code${langClass}>${escaped.trim()}</code></pre>`;
+  });
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, (_, code) => {
+    const escaped = code
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<code>${escaped}</code>`;
+  });
+
+  // Headers
+  html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+  html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+  html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+  html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+
+  // Bold + italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  // Unordered lists
+  html = html.replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+  // Ordered lists
+  html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => {
+    if (!match.startsWith('<ul>')) return '<ol>' + match + '</ol>';
+    return match;
+  });
+
+  // Paragraphs — wrap remaining text in <p>
+  // Split by double newlines, keep already-wrapped content intact
+  html = html.split(/\n{2,}/).map(block => {
+    const t = block.trim();
+    if (!t) return '';
+    // If already wrapped in a block-level tag, leave as-is
+    if (/^<(?:h[1-6]|p|ul|ol|li|pre|blockquote|table)/i.test(t)) return t;
+    return '<p>' + t.replace(/\n/g, '<br>') + '</p>';
+  }).join('\n');
+
+  return _sanitizeHtml(html);
 }
 
 function createMsgRow(role, content) {
