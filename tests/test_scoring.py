@@ -4,19 +4,17 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
-from hilog_agent.config import Config, ScoringConfig
+import yaml
+
+from hilog_agent.config import ScoringConfig
 from hilog_agent.hilog.parser import HilogEvent
-from hilog_agent.hilog.matcher import MatchResult
 from hilog_agent.models.feature import FeatureYaml
-from hilog_agent.models.evidence import Evidence, ChainStepStatus
 from hilog_agent.scoring import (
-    score_feature,
-    score_chain,
     build_evidence,
     infer_chain_statuses,
+    score_chain,
+    score_feature,
 )
-
-import yaml
 
 
 @pytest.fixture

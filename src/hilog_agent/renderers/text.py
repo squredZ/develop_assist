@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from hilog_agent.models.result import (
-    AskResult,
-    AnalysisResult,
     AddModuleResult,
+    AnalysisResult,
+    AskResult,
 )
 
 
@@ -37,7 +37,10 @@ def render_text(
         lines.append(f"Feature: {result.feature}")
         lines.append(f"Chain: {result.chain or 'N/A'}")
         lines.append(f"Expanded Chains: {', '.join(result.expanded_chains)}")
-        lines.append(f"\nConclusion: {result.conclusion.summary} (confidence: {result.conclusion.confidence})")
+        lines.append(
+            f"\nConclusion: {result.conclusion.summary}"
+            f" (confidence: {result.conclusion.confidence})"
+        )
 
         if result.root_causes:
             lines.append("\nRoot Causes:")
@@ -66,9 +69,11 @@ def render_text(
                 )
 
         if result.stats.total_lines:
-            lines.append(f"\nLog Stats: {result.stats.parsed_lines}/{result.stats.total_lines} parsed, "
-                         f"{result.stats.in_window_lines} in window, "
-                         f"span {result.stats.time_span_seconds:.1f}s")
+            lines.append(
+                f"\nLog Stats: {result.stats.parsed_lines}/{result.stats.total_lines} parsed, "
+                f"{result.stats.in_window_lines} in window, "
+                f"span {result.stats.time_span_seconds:.1f}s"
+            )
 
         if result.supplemental_suggestions:
             lines.append("\nSupplemental Suggestions (无直接证据):")
@@ -81,7 +86,7 @@ def render_text(
                 lines.append(f"  ⚠ {w}")
 
     elif isinstance(result, AddModuleResult):
-        lines.append(f"Command: add-module")
+        lines.append("Command: add-module")
         lines.append(f"Feature: {result.feature}")
         lines.append(f"Module: {result.module}")
         if result.written_files:

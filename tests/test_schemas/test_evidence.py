@@ -2,20 +2,13 @@
 from __future__ import annotations
 
 import pytest
+
 from hilog_agent.models.evidence import (
-    Evidence,
-    EvidenceRawRef,
-    ChainStepStatus,
     AnalysisStats,
+    Evidence,
 )
 from hilog_agent.models.result import (
-    Conclusion,
     RootCause,
-    CrossChainCorrelation,
-    AnalysisResult,
-    AskResult,
-    AddModuleResult,
-    WrittenFile,
 )
 
 

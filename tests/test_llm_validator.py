@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import pytest
 from pydantic import BaseModel, Field
-from hilog_agent.llm.validator import validate_and_retry, ValidationExhaustedError
+
+from hilog_agent.llm.validator import ValidationExhaustedError, validate_and_retry
 
 
 class SampleOutput(BaseModel):

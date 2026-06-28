@@ -3,16 +3,14 @@ from __future__ import annotations
 
 import pytest
 import yaml
+
 from hilog_agent.models.feature import (
-    FeatureYaml,
-    FeatureMetadata,
-    FeatureModuleIndex,
-    CallChain,
     CallChainStep,
     ExpectedLog,
-    FailurePattern,
     FailureKeyLog,
-    Entrypoint,
+    FeatureMetadata,
+    FeatureModuleIndex,
+    FeatureYaml,
 )
 
 
@@ -82,27 +80,29 @@ class TestFeatureModuleIndex:
 
 class TestCallChainStep:
     def test_valid_step(self):
-        step = CallChainStep.model_validate({
-            "id": "capture_request",
-            "module": "camera_framework",
-            "file": "path/to/file.cpp",
-            "symbol": "Capture",
-            "description": "发起拍照",
-            "optional": False,
-            "async": False,
-            "expected_logs": [
-                {
-                    "tag": "CameraService",
-                    "level": "INFO",
-                    "pattern": "Start",
-                    "match_type": "substring",
-                    "evidence_type": "step_started",
-                    "required": True,
-                    "weight": 3,
-                    "missing_meaning": "未发起",
-                }
-            ],
-        })
+        step = CallChainStep.model_validate(
+            {
+                "id": "capture_request",
+                "module": "camera_framework",
+                "file": "path/to/file.cpp",
+                "symbol": "Capture",
+                "description": "发起拍照",
+                "optional": False,
+                "async": False,
+                "expected_logs": [
+                    {
+                        "tag": "CameraService",
+                        "level": "INFO",
+                        "pattern": "Start",
+                        "match_type": "substring",
+                        "evidence_type": "step_started",
+                        "required": True,
+                        "weight": 3,
+                        "missing_meaning": "未发起",
+                    }
+                ],
+            }
+        )
         assert step.id == "capture_request"
 
     def test_regex_pattern_must_compile(self):

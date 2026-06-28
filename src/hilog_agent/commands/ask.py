@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from hilog_agent.config import Config
-from hilog_agent.store import FeatureStore
-from hilog_agent.scoring import score_feature
 from hilog_agent.models.result import AskResult
+from hilog_agent.scoring import score_feature
+from hilog_agent.store import FeatureStore
 
 
 def ask(
@@ -59,15 +59,12 @@ def ask(
     margin = config.analysis.feature_score_margin
     threshold = config.analysis.min_feature_score
 
-    if top[1] >= threshold:
-        if len(scored) == 1 or (scored[1][1] + margin <= top[1]):
-            f = store.read_feature(top[0])
-            return _answer_from_feature(f, question)
+    if top[1] >= threshold and (len(scored) == 1 or (scored[1][1] + margin <= top[1])):
+        f = store.read_feature(top[0])
+        return _answer_from_feature(f, question)
 
     # Ambiguous — return candidates
-    candidates = "\n".join(
-        f"  {name} (score: {s})" for name, s in scored[:3]
-    )
+    candidates = "\n".join(f"  {name} (score: {s})" for name, s in scored[:3])
     return AskResult(
         feature="",
         question=question,

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -195,7 +196,13 @@ def default_config_dict() -> dict:
             "tool_timeout_seconds": 30,
             "allowed_tools": {
                 "ask": ["read_feature", "list_features", "read_file", "search_code"],
-                "analyze-log": ["read_feature", "filter_hilog_by_time", "match_logs_by_patterns", "read_file", "search_code"],
+                "analyze-log": [
+                    "read_feature",
+                    "filter_hilog_by_time",
+                    "match_logs_by_patterns",
+                    "read_file",
+                    "search_code",
+                ],
                 "add-module": ["read_feature", "read_file", "search_code"],
             },
         },

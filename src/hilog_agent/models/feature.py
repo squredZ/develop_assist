@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import (
     BaseModel,
@@ -31,12 +31,10 @@ class FeatureModuleIndex(BaseModel):
     responsibility: str
 
     @model_validator(mode="after")
-    def yaml_path_must_match(self) -> "FeatureModuleIndex":
+    def yaml_path_must_match(self) -> FeatureModuleIndex:
         expected = f"modules/{self.name}.yaml"
         if self.yaml_path != expected:
-            raise ValueError(
-                f"yaml_path must be '{expected}', got '{self.yaml_path}'"
-            )
+            raise ValueError(f"yaml_path must be '{expected}', got '{self.yaml_path}'")
         return self
 
 
@@ -63,12 +61,12 @@ class ExpectedLog(BaseModel):
     missing_meaning: str = ""
 
     @model_validator(mode="after")
-    def regex_must_compile(self) -> "ExpectedLog":
+    def regex_must_compile(self) -> ExpectedLog:
         if self.match_type == "regex":
             try:
                 re.compile(self.pattern)
             except re.error as e:
-                raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}")
+                raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}") from e
         return self
 
 
@@ -85,7 +83,7 @@ class CallChainStep(BaseModel):
     expected_logs: list[ExpectedLog] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def optional_step_cannot_have_required_logs(self) -> "CallChainStep":
+    def optional_step_cannot_have_required_logs(self) -> CallChainStep:
         if self.optional:
             for elog in self.expected_logs:
                 if elog.required:
@@ -114,17 +112,17 @@ class FailureKeyLog(BaseModel):
     match_type: Literal["substring", "regex"]
     severity: Literal["high", "medium", "low"]
     confidence_weight: int = Field(ge=1)
-    related_step: Optional[str] = None
+    related_step: str | None = None
     suggested_cause: str = ""
     meaning: str = ""
 
     @model_validator(mode="after")
-    def regex_must_compile(self) -> "FailureKeyLog":
+    def regex_must_compile(self) -> FailureKeyLog:
         if self.match_type == "regex":
             try:
                 re.compile(self.pattern)
             except re.error as e:
-                raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}")
+                raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}") from e
         return self
 
 
@@ -151,19 +149,17 @@ class FeatureYaml(BaseModel):
     metadata: FeatureMetadata
 
     @model_validator(mode="after")
-    def step_ids_unique(self) -> "FeatureYaml":
+    def step_ids_unique(self) -> FeatureYaml:
         seen: set[str] = set()
         for chain in self.call_chains:
             for step in chain.steps:
                 if step.id in seen:
-                    raise ValueError(
-                        f"Duplicate call chain step id '{step.id}' across feature"
-                    )
+                    raise ValueError(f"Duplicate call chain step id '{step.id}' across feature")
                 seen.add(step.id)
         return self
 
     @model_validator(mode="after")
-    def step_modules_exist(self) -> "FeatureYaml":
+    def step_modules_exist(self) -> FeatureYaml:
         module_names = {m.name for m in self.modules}
         for chain in self.call_chains:
             for step in chain.steps:
@@ -175,7 +171,7 @@ class FeatureYaml(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def entrypoint_modules_exist(self) -> "FeatureYaml":
+    def entrypoint_modules_exist(self) -> FeatureYaml:
         module_names = {m.name for m in self.modules}
         for ep in self.entrypoints:
             if ep.module not in module_names:
@@ -186,7 +182,7 @@ class FeatureYaml(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def failure_related_steps_exist(self) -> "FeatureYaml":
+    def failure_related_steps_exist(self) -> FeatureYaml:
         step_ids = {s.id for ch in self.call_chains for s in ch.steps}
         for fp in self.failure_patterns:
             for rid in fp.related_steps:
@@ -204,7 +200,7 @@ class FeatureYaml(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def active_feature_requires_content(self) -> "FeatureYaml":
+    def active_feature_requires_content(self) -> FeatureYaml:
         if self.metadata.status == "active":
             if not self.call_chains:
                 raise ValueError("Active feature requires non-empty call_chains")

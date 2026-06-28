@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -60,7 +60,7 @@ class LLMConfig(BaseModel):
     enabled: bool = True
     provider: str = "openai_compatible"
     api_key_env: str = "OPENAI_API_KEY"
-    api_key: Optional[SecretStr] = None
+    api_key: SecretStr | None = None
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-5.5"
     timeout_seconds: int = 120
@@ -70,7 +70,7 @@ class LLMConfig(BaseModel):
     reasoning: LLMReasoningConfig = Field(default_factory=LLMReasoningConfig)
 
     @model_validator(mode="after")
-    def resolve_api_key(self) -> "LLMConfig":
+    def resolve_api_key(self) -> LLMConfig:
         env_val = os.environ.get(self.api_key_env)
         if env_val:
             self.api_key = SecretStr(env_val)
@@ -124,7 +124,7 @@ def deep_merge(base: dict, override: dict) -> dict:
 
 def load_config(
     config_path: str | Path = "agent.yaml",
-    cli_overrides: Optional[dict[str, Any]] = None,
+    cli_overrides: dict[str, Any] | None = None,
 ) -> Config:
     """Load config from YAML file, apply CLI overrides, fall back to defaults."""
     data: dict[str, Any] = {}

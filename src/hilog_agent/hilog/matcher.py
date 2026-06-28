@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal
 
@@ -38,10 +38,7 @@ def match_logs(
     """Match events by tag + pattern. Optional level filter."""
     results: list[MatchResult] = []
 
-    if match_type == "regex":
-        compiled = re.compile(pattern)
-    else:
-        compiled = None
+    compiled = re.compile(pattern) if match_type == "regex" else None
 
     for evt in events:
         if evt.tag != tag:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Type
+from collections.abc import Callable
 
 from pydantic import BaseModel, ValidationError
 
@@ -14,7 +14,7 @@ class ValidationExhaustedError(Exception):
 
 def validate_and_retry(
     raw_output: str,
-    model: Type[BaseModel],
+    model: type[BaseModel],
     max_retries: int,
     llm_call: Callable[[str], str] | None,
 ) -> BaseModel:
@@ -41,6 +41,5 @@ def validate_and_retry(
             break
 
     raise ValidationExhaustedError(
-        f"LLM output validation failed after {max_retries} retries. "
-        f"Last error: {last_error}"
+        f"LLM output validation failed after {max_retries} retries. Last error: {last_error}"
     )

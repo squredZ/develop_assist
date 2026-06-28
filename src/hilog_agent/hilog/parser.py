@@ -9,9 +9,9 @@ from pathlib import Path
 
 HILOG_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+"
-    r"(\S+?)\s+"       # tag (non-whitespace)
-    r"([A-Z]+)\s+"      # level (uppercase)
-    r"(.*)"             # message
+    r"(\S+?)\s+"  # tag (non-whitespace)
+    r"([A-Z]+)\s+"  # level (uppercase)
+    r"(.*)"  # message
 )
 
 HILOG_DT_FMT = "%Y-%m-%d %H:%M:%S.%f"
@@ -26,7 +26,7 @@ class HilogEvent:
     raw: str
 
     @classmethod
-    def parse_line(cls, line: str) -> "HilogEvent | None":
+    def parse_line(cls, line: str) -> HilogEvent | None:
         m = HILOG_RE.match(line.strip())
         if not m:
             return None

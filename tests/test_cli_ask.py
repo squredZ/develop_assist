@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import pytest
+
+from hilog_agent.commands.ask import ask
 from hilog_agent.config import Config
 from hilog_agent.store import FeatureStore
-from hilog_agent.commands.ask import ask
 
 
 @pytest.fixture

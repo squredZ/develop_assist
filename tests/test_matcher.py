@@ -1,16 +1,13 @@
 # tests/test_matcher.py
 from __future__ import annotations
 
-import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
-import pytest
-from hilog_agent.hilog.parser import HilogEvent
 from hilog_agent.hilog.matcher import (
     filter_by_time_window,
     match_logs,
-    MatchResult,
 )
+from hilog_agent.hilog.parser import HilogEvent
 
 
 def make_event(ts: str, tag: str = "T", level: str = "INFO", msg: str = "msg"):
@@ -32,9 +29,7 @@ class TestTimeWindow:
             make_event("2026-06-28 14:35:10.000"),  # 10s after
             make_event("2026-06-28 14:33:00.000"),  # 120s before — out
         ]
-        filtered = filter_by_time_window(
-            events, center, before_seconds=60, after_seconds=60
-        )
+        filtered = filter_by_time_window(events, center, before_seconds=60, after_seconds=60)
         assert len(filtered) == 3
 
     def test_asymmetric_window(self):
@@ -43,9 +38,7 @@ class TestTimeWindow:
             make_event("2026-06-28 14:33:50.000"),  # 70s before
             make_event("2026-06-28 14:35:05.000"),  # 5s after — in
         ]
-        filtered = filter_by_time_window(
-            events, center, before_seconds=120, after_seconds=30
-        )
+        filtered = filter_by_time_window(events, center, before_seconds=120, after_seconds=30)
         assert len(filtered) == 2  # both in asymmetric window
 
 

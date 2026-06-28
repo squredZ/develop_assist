@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 from hilog_agent.config import ScoringConfig
-from hilog_agent.hilog.parser import HilogEvent
 from hilog_agent.hilog.matcher import match_logs
+from hilog_agent.hilog.parser import HilogEvent
+from hilog_agent.models.evidence import ChainStepStatus, Evidence
 from hilog_agent.models.feature import (
-    FeatureYaml,
     CallChain,
-    CallChainStep,
-    ExpectedLog,
-    FailureKeyLog,
+    FeatureYaml,
 )
-from hilog_agent.models.evidence import Evidence, ChainStepStatus
 
 
 def score_feature(
@@ -32,8 +29,11 @@ def score_feature(
     for fp in feature.failure_patterns:
         for kl in fp.key_logs:
             hits = match_logs(
-                log_events, tag=kl.tag, pattern=kl.pattern,
-                match_type=kl.match_type, level=kl.level,
+                log_events,
+                tag=kl.tag,
+                pattern=kl.pattern,
+                match_type=kl.match_type,
+                level=kl.level,
             )
             if hits:
                 score += sc.log_pattern_hit_weight * 5
@@ -69,8 +69,11 @@ def score_chain(
     for step in chain.steps:
         for elog in step.expected_logs:
             hits = match_logs(
-                events, tag=elog.tag, pattern=elog.pattern,
-                match_type=elog.match_type, level=elog.level,
+                events,
+                tag=elog.tag,
+                pattern=elog.pattern,
+                match_type=elog.match_type,
+                level=elog.level,
             )
             if hits:
                 score += elog.weight * sc.log_pattern_hit_weight
@@ -82,8 +85,11 @@ def score_chain(
             if not elog.required:
                 continue
             hits = match_logs(
-                events, tag=elog.tag, pattern=elog.pattern,
-                match_type=elog.match_type, level=elog.level,
+                events,
+                tag=elog.tag,
+                pattern=elog.pattern,
+                match_type=elog.match_type,
+                level=elog.level,
             )
             if not hits:
                 score -= sc.missing_required_step_penalty
@@ -104,8 +110,11 @@ def _longest_consecutive_normal(chain: CallChain, events: list[HilogEvent]) -> i
         ok = False
         for elog in required_logs:
             hits = match_logs(
-                events, tag=elog.tag, pattern=elog.pattern,
-                match_type=elog.match_type, level=elog.level,
+                events,
+                tag=elog.tag,
+                pattern=elog.pattern,
+                match_type=elog.match_type,
+                level=elog.level,
             )
             if hits:
                 ok = True
@@ -141,56 +150,68 @@ def build_evidence(
     for step in chain.steps:
         for elog in step.expected_logs:
             hits = match_logs(
-                events, tag=elog.tag, pattern=elog.pattern,
-                match_type=elog.match_type, level=elog.level,
+                events,
+                tag=elog.tag,
+                pattern=elog.pattern,
+                match_type=elog.match_type,
+                level=elog.level,
             )
             if hits:
                 for h in hits:
-                    evidence.append(Evidence(
+                    evidence.append(
+                        Evidence(
+                            id=next_id(),
+                            source="hilog",
+                            type="expected_log_hit",
+                            feature=feature.name,
+                            chain=chain.name,
+                            step=step.id,
+                            severity="low",
+                            confidence_delta=elog.weight,
+                            summary=h.match_text,
+                        )
+                    )
+            elif elog.required:
+                penalty = ScoringConfig().missing_required_step_penalty
+                evidence.append(
+                    Evidence(
                         id=next_id(),
                         source="hilog",
-                        type="expected_log_hit",
+                        type="missing_required_log",
                         feature=feature.name,
                         chain=chain.name,
                         step=step.id,
-                        severity="low",
-                        confidence_delta=elog.weight,
-                        summary=h.match_text,
-                    ))
-            elif elog.required:
-                penalty = ScoringConfig().missing_required_step_penalty
-                evidence.append(Evidence(
-                    id=next_id(),
-                    source="hilog",
-                    type="missing_required_log",
-                    feature=feature.name,
-                    chain=chain.name,
-                    step=step.id,
-                    severity="medium",
-                    confidence_delta=-penalty,
-                    summary=elog.missing_meaning or f"Missing: {elog.pattern}",
-                ))
+                        severity="medium",
+                        confidence_delta=-penalty,
+                        summary=elog.missing_meaning or f"Missing: {elog.pattern}",
+                    )
+                )
 
     step_ids = {s.id for s in chain.steps}
     for fp in feature.failure_patterns:
         for kl in fp.key_logs:
             if kl.related_step and kl.related_step in step_ids:
                 hits = match_logs(
-                    events, tag=kl.tag, pattern=kl.pattern,
-                    match_type=kl.match_type, level=kl.level,
+                    events,
+                    tag=kl.tag,
+                    pattern=kl.pattern,
+                    match_type=kl.match_type,
+                    level=kl.level,
                 )
                 for h in hits:
-                    evidence.append(Evidence(
-                        id=next_id(),
-                        source="hilog",
-                        type="failure_log_hit",
-                        feature=feature.name,
-                        chain=chain.name,
-                        step=kl.related_step,
-                        severity=kl.severity,
-                        confidence_delta=kl.confidence_weight,
-                        summary=f"{kl.meaning}: {h.match_text}",
-                    ))
+                    evidence.append(
+                        Evidence(
+                            id=next_id(),
+                            source="hilog",
+                            type="failure_log_hit",
+                            feature=feature.name,
+                            chain=chain.name,
+                            step=kl.related_step,
+                            severity=kl.severity,
+                            confidence_delta=kl.confidence_weight,
+                            summary=f"{kl.meaning}: {h.match_text}",
+                        )
+                    )
 
     return evidence
 
@@ -213,9 +234,7 @@ def infer_chain_statuses(
         ev_ids = [e.id for e in ev_list]
 
         has_expected = any(e.type == "expected_log_hit" for e in ev_list)
-        has_failure = any(
-            e.type == "failure_log_hit" and e.severity == "high" for e in ev_list
-        )
+        has_failure = any(e.type == "failure_log_hit" and e.severity == "high" for e in ev_list)
         has_missing = any(e.type == "missing_required_log" for e in ev_list)
 
         if upstream_abnormal and not has_expected:
@@ -232,12 +251,14 @@ def infer_chain_statuses(
         else:
             status = "unknown"
 
-        statuses.append(ChainStepStatus(
-            chain=chain.name,
-            step_id=step.id,
-            status=status,
-            evidence=ev_ids,
-            detail="",
-        ))
+        statuses.append(
+            ChainStepStatus(
+                chain=chain.name,
+                step_id=step.id,
+                status=status,
+                evidence=ev_ids,
+                detail="",
+            )
+        )
 
     return statuses

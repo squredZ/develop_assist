@@ -4,9 +4,10 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+
+from hilog_agent.commands.analyze_log import analyze_log
 from hilog_agent.config import Config
 from hilog_agent.store import FeatureStore
-from hilog_agent.commands.analyze_log import analyze_log
 
 
 @pytest.fixture

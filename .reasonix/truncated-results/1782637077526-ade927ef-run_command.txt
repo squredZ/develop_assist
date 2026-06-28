@@ -1,0 +1,957 @@
+$ .venv/bin/ruff check src/ tests/ 2>&1 && .venv/bin/mypy src/ 2>&1 | tail -10
+[exit 1]
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/hilog_agent/cli.py:3:1
+   |
+ 1 |   """CLI entry point using Click."""
+ 2 |
+ 3 | / from __future__ import annotations
+ 4 | |
+ 5 | | import sys
+ 6 | | from datetime import datetime
+ 7 | | from pathlib import Path
+ 8 | |
+ 9 | | import click
+10 | |
+11 | | from hilog_agent.config import load_config
+12 | | from hilog_agent.store import FeatureStore
+13 | | from hilog_agent.commands.ask import ask
+14 | | from hilog_agent.commands.analyze_log import analyze_log
+15 | | from hilog_agent.commands.add_module import add_module
+16 | | from hilog_agent.renderers.text import render_text
+17 | | from hilog_agent.renderers.json_renderer import render_json
+   | |___________________________________________________________^
+   |
+help: Organize imports
+
+F401 [*] `pathlib.Path` imported but unused
+ --> src/hilog_agent/cli.py:7:21
+  |
+5 | import sys
+6 | from datetime import datetime
+7 | from pathlib import Path
+  |                     ^^^^
+8 |
+9 | import click
+  |
+help: Remove unused import: `pathlib.Path`
+
+E501 Line too long (103 > 100)
+  --> src/hilog_agent/cli.py:35:101
+   |
+34 | @cli.command()
+35 | @click.option("--feature", "-f", default=None, help="Feature name (optional, auto-matched if omitted)")
+   |                                                                                                     ^^^
+36 | @click.option("--question", "-q", required=True, help="Question to ask")
+37 | @click.option("--no-llm", is_flag=True, help="Deterministic mode — no LLM call")
+   |
+
+E501 Line too long (115 > 100)
+  --> src/hilog_agent/cli.py:56:101
+   |
+55 | @cli.command()
+56 | @click.option("--log", "-l", "log_paths", multiple=True, required=True, help="Log file path(s) or glob pattern(s)")
+   |                                                                                                     ^^^^^^^^^^^^^^^
+57 | @click.option("--time", "-t", "center_time", required=True, help="Center timestamp (YYYY-MM-DD HH:MM)")
+58 | @click.option("--window", "-w", type=int, default=None, help="Symmetric window in seconds")
+   |
+
+E501 Line too long (103 > 100)
+  --> src/hilog_agent/cli.py:57:101
+   |
+55 | @cli.command()
+56 | @click.option("--log", "-l", "log_paths", multiple=True, required=True, help="Log file path(s) or glob pattern(s)")
+57 | @click.option("--time", "-t", "center_time", required=True, help="Center timestamp (YYYY-MM-DD HH:MM)")
+   |                                                                                                     ^^^
+58 | @click.option("--window", "-w", type=int, default=None, help="Symmetric window in seconds")
+59 | @click.option("--window-before", type=int, default=None, help="Seconds before center time")
+   |
+
+E501 Line too long (129 > 100)
+  --> src/hilog_agent/cli.py:66:101
+   |
+64 | @click.option("--json", "json_output", is_flag=True, help="Output as JSON")
+65 | @click.pass_context
+66 | def analyze_log_cmd(ctx, log_paths, center_time, window, window_before, window_after, feature, chain, top_n_chains, json_output):
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+67 |     """Analyze hilog evidence with feature knowledge."""
+68 |     cfg = ctx.obj["config"]
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/hilog_agent/commands/add_module.py:3:1
+   |
+ 1 |   """Module knowledge generation and feature update command."""
+ 2 |
+ 3 | / from __future__ import annotations
+ 4 | |
+ 5 | | import os
+ 6 | | from datetime import datetime
+ 7 | | from pathlib import Path
+ 8 | |
+ 9 | | import yaml
+10 | |
+11 | | from hilog_agent.config import Config
+12 | | from hilog_agent.store import FeatureStore
+13 | | from hilog_agent.models.feature import FeatureModuleIndex, FeatureYaml
+14 | | from hilog_agent.models.module import ModuleYaml, ModuleMetadata
+15 | | from hilog_agent.models.result import (
+16 | |     AddModuleResult,
+17 | |     WrittenFile,
+18 | |     RelatedFeatureSuggestion,
+19 | | )
+20 | | from hilog_agent.diff_safety import validate_diff
+   | |_________________________________________________^
+   |
+help: Organize imports
+
+F401 [*] `hilog_agent.models.result.RelatedFeatureSuggestion` imported but unused
+  --> src/hilog_agent/commands/add_module.py:18:5
+   |
+16 |     AddModuleResult,
+17 |     WrittenFile,
+18 |     RelatedFeatureSuggestion,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+19 | )
+20 | from hilog_agent.diff_safety import validate_diff
+   |
+help: Remove unused import: `hilog_agent.models.result.RelatedFeatureSuggestion`
+
+E501 Line too long (109 > 100)
+   --> src/hilog_agent/commands/add_module.py:133:101
+    |
+131 |         written_files=written,
+132 |         analysis_summary=[f"Generated module YAML for {module}"],
+133 |         change_summary=[f"Appended module index for {module}, version → {updated_feature.metadata.version}"],
+    |                                                                                                     ^^^^^^^^^
+134 |         warnings=warnings,
+135 |         related_feature_suggestions=[],
+    |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/hilog_agent/commands/analyze_log.py:3:1
+   |
+ 1 |   """Hilog evidence analysis command."""
+ 2 |
+ 3 | / from __future__ import annotations
+ 4 | |
+ 5 | | import glob as glob_mod
+ 6 | | from datetime import datetime
+ 7 | | from pathlib import Path
+ 8 | |
+ 9 | | from hilog_agent.config import Config
+10 | | from hilog_agent.store import FeatureStore
+11 | | from hilog_agent.hilog.parser import parse_hilog_file, HilogEvent
+12 | | from hilog_agent.hilog.matcher import filter_by_time_window
+13 | | from hilog_agent.scoring import score_chain, build_evidence, infer_chain_statuses
+14 | | from hilog_agent.models.evidence import AnalysisStats
+15 | | from hilog_agent.models.result import AnalysisResult, Conclusion, RootCause
+   | |___________________________________________________________________________^
+   |
+help: Organize imports
+
+I001 [*] Import block is un-sorted or un-formatted
+ --> src/hilog_agent/commands/ask.py:3:1
+  |
+1 |   """Feature Q&A command."""
+2 |
+3 | / from __future__ import annotations
+4 | |
+5 | | from hilog_agent.config import Config
+6 | | from hilog_agent.store import FeatureStore
+7 | | from hilog_agent.scoring import score_feature
+8 | | from hilog_agent.models.result import AskResult
+  | |_______________________________________________^
+  |
+help: Organize imports
+
+SIM102 Use a single `if` statement instead of nested `if` statements
+  --> src/hilog_agent/commands/ask.py:62:5
+   |
+60 |       threshold = config.analysis.min_feature_score
+61 |
+62 | /     if top[1] >= threshold:
+63 | |         if len(scored) == 1 or (scored[1][1] + margin <= top[1]):
+   | |_________________________________________________________________^
+64 |               f = store.read_feature(top[0])
+65 |               return _answer_from_feature(f, question)
+   |
+help: Combine `if` statements using `and`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/config.py:63:14
+   |
+61 |     provider: str = "openai_compatible"
+62 |     api_key_env: str = "OPENAI_API_KEY"
+63 |     api_key: Optional[SecretStr] = None
+   |              ^^^^^^^^^^^^^^^^^^^
+64 |     base_url: str = "https://api.openai.com/v1"
+65 |     model: str = "gpt-5.5"
+   |
+help: Convert to `X | None`
+
+UP037 [*] Remove quotes from type annotation
+  --> src/hilog_agent/config.py:73:34
+   |
+72 |     @model_validator(mode="after")
+73 |     def resolve_api_key(self) -> "LLMConfig":
+   |                                  ^^^^^^^^^^^
+74 |         env_val = os.environ.get(self.api_key_env)
+75 |         if env_val:
+   |
+help: Remove quotes
+
+UP045 [*] Use `X | None` for type annotations
+   --> src/hilog_agent/config.py:127:20
+    |
+125 | def load_config(
+126 |     config_path: str | Path = "agent.yaml",
+127 |     cli_overrides: Optional[dict[str, Any]] = None,
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^
+128 | ) -> Config:
+129 |     """Load config from YAML file, apply CLI overrides, fall back to defaults."""
+    |
+help: Convert to `X | None`
+
+F541 [*] f-string without any placeholders
+  --> src/hilog_agent/diff_safety.py:16:23
+   |
+14 |         errors.append(f"name changed: '{original.name}' → '{updated.name}'")
+15 |     if updated.display_name != original.display_name:
+16 |         errors.append(f"display_name changed")
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^
+17 |     if updated.description != original.description:
+18 |         errors.append(f"description changed")
+   |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+  --> src/hilog_agent/diff_safety.py:18:23
+   |
+16 |         errors.append(f"display_name changed")
+17 |     if updated.description != original.description:
+18 |         errors.append(f"description changed")
+   |                       ^^^^^^^^^^^^^^^^^^^^^^
+19 |     if updated.keywords != original.keywords:
+20 |         errors.append("keywords modified")
+   |
+help: Remove extraneous `f` prefix
+
+F401 [*] `dataclasses.field` imported but unused
+ --> src/hilog_agent/hilog/matcher.py:6:36
+  |
+5 | import re
+6 | from dataclasses import dataclass, field
+  |                                    ^^^^^
+7 | from datetime import datetime, timedelta
+8 | from typing import Literal
+  |
+help: Remove unused import: `dataclasses.field`
+
+SIM108 Use ternary operator `compiled = re.compile(pattern) if match_type == "regex" else None` instead of `if`-`else`-block
+  --> src/hilog_agent/hilog/matcher.py:41:5
+   |
+39 |       results: list[MatchResult] = []
+40 |
+41 | /     if match_type == "regex":
+42 | |         compiled = re.compile(pattern)
+43 | |     else:
+44 | |         compiled = None
+   | |_______________________^
+45 |
+46 |       for evt in events:
+   |
+help: Replace `if`-`else`-block with `compiled = re.compile(pattern) if match_type == "regex" else None`
+
+UP037 [*] Remove quotes from type annotation
+  --> src/hilog_agent/hilog/parser.py:29:39
+   |
+28 |     @classmethod
+29 |     def parse_line(cls, line: str) -> "HilogEvent | None":
+   |                                       ^^^^^^^^^^^^^^^^^^^
+30 |         m = HILOG_RE.match(line.strip())
+31 |         if not m:
+   |
+help: Remove quotes
+
+UP035 [*] Import from `collections.abc` instead: `Iterator`
+ --> src/hilog_agent/llm/client.py:5:1
+  |
+3 | from __future__ import annotations
+4 |
+5 | from typing import Any, Iterator
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+6 |
+7 | from openai import OpenAI
+  |
+help: Import from `collections.abc`
+
+UP035 [*] Import from `collections.abc` instead: `Callable`
+ --> src/hilog_agent/llm/validator.py:6:1
+  |
+5 | import json
+6 | from typing import Any, Callable, Type
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | from pydantic import BaseModel, ValidationError
+  |
+help: Import from `collections.abc`
+
+UP035 `typing.Type` is deprecated, use `type` instead
+ --> src/hilog_agent/llm/validator.py:6:1
+  |
+5 | import json
+6 | from typing import Any, Callable, Type
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+7 |
+8 | from pydantic import BaseModel, ValidationError
+  |
+
+F401 [*] `typing.Any` imported but unused
+ --> src/hilog_agent/llm/validator.py:6:20
+  |
+5 | import json
+6 | from typing import Any, Callable, Type
+  |                    ^^^
+7 |
+8 | from pydantic import BaseModel, ValidationError
+  |
+help: Remove unused import: `typing.Any`
+
+UP006 [*] Use `type` instead of `Type` for type annotation
+  --> src/hilog_agent/llm/validator.py:17:12
+   |
+15 | def validate_and_retry(
+16 |     raw_output: str,
+17 |     model: Type[BaseModel],
+   |            ^^^^
+18 |     max_retries: int,
+19 |     llm_call: Callable[[str], str] | None,
+   |
+help: Replace with `type`
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/hilog_agent/models/__init__.py:3:1
+   |
+ 1 |   """Pydantic v2 models for the Hilog Agent."""
+ 2 |
+ 3 | / from hilog_agent.models.feature import (
+ 4 | |     FeatureYaml,
+ 5 | |     FeatureMetadata,
+ 6 | |     FeatureModuleIndex,
+ 7 | |     CallChain,
+ 8 | |     CallChainStep,
+ 9 | |     ExpectedLog,
+10 | |     FailurePattern,
+11 | |     FailureKeyLog,
+12 | |     Entrypoint,
+13 | | )
+14 | | from hilog_agent.models.module import (
+15 | |     ModuleYaml,
+16 | |     ModuleMetadata,
+17 | |     ModuleSymbol,
+18 | |     ModuleLog,
+19 | |     CandidateStep,
+20 | |     FailureSignal,
+21 | |     ModuleDependency,
+22 | |     ModuleEntrypoint,
+23 | |     LogSource,
+24 | | )
+25 | | from hilog_agent.models.evidence import (
+26 | |     Evidence,
+27 | |     EvidenceRawRef,
+28 | |     ChainStepStatus,
+29 | |     AnalysisStats,
+30 | | )
+31 | | from hilog_agent.models.result import (
+32 | |     Conclusion,
+33 | |     RootCause,
+34 | |     CrossChainCorrelation,
+35 | |     AnalysisResult,
+36 | |     AskResult,
+37 | |     AddModuleResult,
+38 | |     WrittenFile,
+39 | |     ModuleGenerationResult,
+40 | |     FeatureUpdateResult,
+41 | |     RelatedFeatureSuggestion,
+42 | | )
+   | |_^
+43 |
+44 |   __all__ = [
+   |
+help: Organize imports
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/evidence.py:14:11
+   |
+13 |     file: str = ""
+14 |     line: Optional[int] = None
+   |           ^^^^^^^^^^^^^
+15 |     timestamp: Optional[str] = None
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/evidence.py:15:16
+   |
+13 |     file: str = ""
+14 |     line: Optional[int] = None
+15 |     timestamp: Optional[str] = None
+   |                ^^^^^^^^^^^^^
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/evidence.py:32:12
+   |
+30 |     ]
+31 |     feature: str = ""
+32 |     chain: Optional[str] = None
+   |            ^^^^^^^^^^^^^
+33 |     step: Optional[str] = None
+34 |     severity: Literal["high", "medium", "low"] = "low"
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/evidence.py:33:11
+   |
+31 |     feature: str = ""
+32 |     chain: Optional[str] = None
+33 |     step: Optional[str] = None
+   |           ^^^^^^^^^^^^^
+34 |     severity: Literal["high", "medium", "low"] = "low"
+35 |     confidence_delta: int = 0
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/evidence.py:37:14
+   |
+35 |     confidence_delta: int = 0
+36 |     summary: str
+37 |     raw_ref: Optional[EvidenceRawRef] = None
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: Convert to `X | None`
+
+UP037 [*] Remove quotes from type annotation
+  --> src/hilog_agent/models/feature.py:34:39
+   |
+33 |     @model_validator(mode="after")
+34 |     def yaml_path_must_match(self) -> "FeatureModuleIndex":
+   |                                       ^^^^^^^^^^^^^^^^^^^^
+35 |         expected = f"modules/{self.name}.yaml"
+36 |         if self.yaml_path != expected:
+   |
+help: Remove quotes
+
+UP037 [*] Remove quotes from type annotation
+  --> src/hilog_agent/models/feature.py:66:37
+   |
+65 |     @model_validator(mode="after")
+66 |     def regex_must_compile(self) -> "ExpectedLog":
+   |                                     ^^^^^^^^^^^^^
+67 |         if self.match_type == "regex":
+68 |             try:
+   |
+help: Remove quotes
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+  --> src/hilog_agent/models/feature.py:71:17
+   |
+69 |                 re.compile(self.pattern)
+70 |             except re.error as e:
+71 |                 raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}")
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+72 |         return self
+   |
+
+UP037 [*] Remove quotes from type annotation
+  --> src/hilog_agent/models/feature.py:88:58
+   |
+87 |     @model_validator(mode="after")
+88 |     def optional_step_cannot_have_required_logs(self) -> "CallChainStep":
+   |                                                          ^^^^^^^^^^^^^^^
+89 |         if self.optional:
+90 |             for elog in self.expected_logs:
+   |
+help: Remove quotes
+
+UP045 [*] Use `X | None` for type annotations
+   --> src/hilog_agent/models/feature.py:117:19
+    |
+115 |     severity: Literal["high", "medium", "low"]
+116 |     confidence_weight: int = Field(ge=1)
+117 |     related_step: Optional[str] = None
+    |                   ^^^^^^^^^^^^^
+118 |     suggested_cause: str = ""
+119 |     meaning: str = ""
+    |
+help: Convert to `X | None`
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/feature.py:122:37
+    |
+121 |     @model_validator(mode="after")
+122 |     def regex_must_compile(self) -> "FailureKeyLog":
+    |                                     ^^^^^^^^^^^^^^^
+123 |         if self.match_type == "regex":
+124 |             try:
+    |
+help: Remove quotes
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/hilog_agent/models/feature.py:127:17
+    |
+125 |                 re.compile(self.pattern)
+126 |             except re.error as e:
+127 |                 raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}")
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+128 |         return self
+    |
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/feature.py:154:34
+    |
+153 |     @model_validator(mode="after")
+154 |     def step_ids_unique(self) -> "FeatureYaml":
+    |                                  ^^^^^^^^^^^^^
+155 |         seen: set[str] = set()
+156 |         for chain in self.call_chains:
+    |
+help: Remove quotes
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/feature.py:166:37
+    |
+165 |     @model_validator(mode="after")
+166 |     def step_modules_exist(self) -> "FeatureYaml":
+    |                                     ^^^^^^^^^^^^^
+167 |         module_names = {m.name for m in self.modules}
+168 |         for chain in self.call_chains:
+    |
+help: Remove quotes
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/feature.py:178:43
+    |
+177 |     @model_validator(mode="after")
+178 |     def entrypoint_modules_exist(self) -> "FeatureYaml":
+    |                                           ^^^^^^^^^^^^^
+179 |         module_names = {m.name for m in self.modules}
+180 |         for ep in self.entrypoints:
+    |
+help: Remove quotes
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/feature.py:189:46
+    |
+188 |     @model_validator(mode="after")
+189 |     def failure_related_steps_exist(self) -> "FeatureYaml":
+    |                                              ^^^^^^^^^^^^^
+190 |         step_ids = {s.id for ch in self.call_chains for s in ch.steps}
+191 |         for fp in self.failure_patterns:
+    |
+help: Remove quotes
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/feature.py:207:50
+    |
+206 |     @model_validator(mode="after")
+207 |     def active_feature_requires_content(self) -> "FeatureYaml":
+    |                                                  ^^^^^^^^^^^^^
+208 |         if self.metadata.status == "active":
+209 |             if not self.call_chains:
+    |
+help: Remove quotes
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/module.py:19:11
+   |
+17 |     model_config = ConfigDict(extra="allow")
+18 |
+19 |     file: Optional[str] = None
+   |           ^^^^^^^^^^^^^
+20 |     line: Optional[int] = Field(default=None, ge=1)
+21 |     symbol: Optional[str] = None
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/module.py:20:11
+   |
+19 |     file: Optional[str] = None
+20 |     line: Optional[int] = Field(default=None, ge=1)
+   |           ^^^^^^^^^^^^^
+21 |     symbol: Optional[str] = None
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/module.py:21:13
+   |
+19 |     file: Optional[str] = None
+20 |     line: Optional[int] = Field(default=None, ge=1)
+21 |     symbol: Optional[str] = None
+   |             ^^^^^^^^^^^^^
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/module.py:51:19
+   |
+49 |     meaning: str
+50 |     evidence_type: str = Field(min_length=1)
+51 |     related_step: Optional[str] = None
+   |                   ^^^^^^^^^^^^^
+52 |     severity: Literal["high", "medium", "low"] = "low"
+53 |     confidence_weight: int = Field(default=1, ge=1)
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/module.py:54:13
+   |
+52 |     severity: Literal["high", "medium", "low"] = "low"
+53 |     confidence_weight: int = Field(default=1, ge=1)
+54 |     source: Optional[LogSource] = None
+   |             ^^^^^^^^^^^^^^^^^^^
+55 |
+56 |     @model_validator(mode="after")
+   |
+help: Convert to `X | None`
+
+UP037 [*] Remove quotes from type annotation
+  --> src/hilog_agent/models/module.py:57:37
+   |
+56 |     @model_validator(mode="after")
+57 |     def regex_must_compile(self) -> "ModuleLog":
+   |                                     ^^^^^^^^^^^
+58 |         if self.match_type == "regex":
+59 |             try:
+   |
+help: Remove quotes
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+  --> src/hilog_agent/models/module.py:62:17
+   |
+60 |                 re.compile(self.pattern)
+61 |             except re.error as e:
+62 |                 raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}")
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+63 |         return self
+   |
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/module.py:90:19
+   |
+88 |     suggested_cause: str = ""
+89 |     meaning: str = ""
+90 |     related_step: Optional[str] = None
+   |                   ^^^^^^^^^^^^^
+91 |     confidence_weight: int = Field(default=1, ge=1)
+92 |     source: Optional[LogSource] = None
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/module.py:92:13
+   |
+90 |     related_step: Optional[str] = None
+91 |     confidence_weight: int = Field(default=1, ge=1)
+92 |     source: Optional[LogSource] = None
+   |             ^^^^^^^^^^^^^^^^^^^
+93 |
+94 |     @model_validator(mode="after")
+   |
+help: Convert to `X | None`
+
+UP037 [*] Remove quotes from type annotation
+  --> src/hilog_agent/models/module.py:95:37
+   |
+94 |     @model_validator(mode="after")
+95 |     def regex_must_compile(self) -> "FailureSignal":
+   |                                     ^^^^^^^^^^^^^^^
+96 |         if self.match_type == "regex":
+97 |             try:
+   |
+help: Remove quotes
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/hilog_agent/models/module.py:100:17
+    |
+ 98 |                 re.compile(self.pattern)
+ 99 |             except re.error as e:
+100 |                 raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}")
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+101 |         return self
+    |
+
+UP045 [*] Use `X | None` for type annotations
+   --> src/hilog_agent/models/module.py:122:13
+    |
+120 |     direction: Literal["input", "output", "bidirectional"] = "input"
+121 |     reason: str = ""
+122 |     source: Optional[LogSource] = None
+    |             ^^^^^^^^^^^^^^^^^^^
+    |
+help: Convert to `X | None`
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/module.py:141:44
+    |
+140 |     @model_validator(mode="after")
+141 |     def candidate_step_ids_unique(self) -> "ModuleYaml":
+    |                                            ^^^^^^^^^^^^
+142 |         seen: set[str] = set()
+143 |         for cs in self.candidate_steps:
+    |
+help: Remove quotes
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/module.py:150:42
+    |
+149 |     @model_validator(mode="after")
+150 |     def log_related_steps_exist(self) -> "ModuleYaml":
+    |                                          ^^^^^^^^^^^^
+151 |         step_ids = {cs.id for cs in self.candidate_steps}
+152 |         for log in self.logs:
+    |
+help: Remove quotes
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/module.py:161:53
+    |
+160 |     @model_validator(mode="after")
+161 |     def failure_signal_related_steps_exist(self) -> "ModuleYaml":
+    |                                                     ^^^^^^^^^^^^
+162 |         step_ids = {cs.id for cs in self.candidate_steps}
+163 |         for fs in self.failure_signals:
+    |
+help: Remove quotes
+
+UP037 [*] Remove quotes from type annotation
+   --> src/hilog_agent/models/module.py:172:56
+    |
+171 |     @model_validator(mode="after")
+172 |     def empty_lists_without_review_notes_warn(self) -> "ModuleYaml":
+    |                                                        ^^^^^^^^^^^^
+173 |         # Warnings are surfaced via the `warnings` property below.
+174 |         return self
+    |
+help: Remove quotes
+
+I001 [*] Import block is un-sorted or un-formatted
+ --> src/hilog_agent/models/result.py:3:1
+  |
+1 |   """CLI result models and LLM output models."""
+2 |
+3 | / from __future__ import annotations
+4 | |
+5 | | from typing import Literal, Optional
+6 | |
+7 | | from pydantic import BaseModel, ConfigDict, Field
+8 | |
+9 | | from hilog_agent.models.evidence import Evidence, ChainStepStatus, AnalysisStats
+  | |________________________________________________________________________________^
+  |
+help: Organize imports
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/result.py:61:12
+   |
+59 |     command: Literal["analyze-log"] = "analyze-log"
+60 |     feature: str
+61 |     chain: Optional[str] = None
+   |            ^^^^^^^^^^^^^
+62 |     expanded_chains: list[str] = Field(default_factory=list)
+63 |     question: Optional[str] = None
+   |
+help: Convert to `X | None`
+
+UP045 [*] Use `X | None` for type annotations
+  --> src/hilog_agent/models/result.py:63:15
+   |
+61 |     chain: Optional[str] = None
+62 |     expanded_chains: list[str] = Field(default_factory=list)
+63 |     question: Optional[str] = None
+   |               ^^^^^^^^^^^^^
+64 |     conclusion: Conclusion
+65 |     root_causes: list[RootCause] = Field(default_factory=list)
+   |
+help: Convert to `X | None`
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/hilog_agent/renderers/json_renderer.py:3:1
+   |
+ 1 |   """JSON renderer for CLI output."""
+ 2 |
+ 3 | / from __future__ import annotations
+ 4 | |
+ 5 | | import json
+ 6 | |
+ 7 | | from hilog_agent.models.result import (
+ 8 | |     AskResult,
+ 9 | |     AnalysisResult,
+10 | |     AddModuleResult,
+11 | | )
+   | |_^
+   |
+help: Organize imports
+
+I001 [*] Import block is un-sorted or un-formatted
+ --> src/hilog_agent/renderers/text.py:3:1
+  |
+1 |   """Text renderer for CLI output."""
+2 |
+3 | / from __future__ import annotations
+4 | |
+5 | | from hilog_agent.models.result import (
+6 | |     AskResult,
+7 | |     AnalysisResult,
+8 | |     AddModuleResult,
+9 | | )
+  | |_^
+  |
+help: Organize imports
+
+E501 Line too long (111 > 100)
+  --> src/hilog_agent/renderers/text.py:40:101
+   |
+38 |         lines.append(f"Chain: {result.chain or 'N/A'}")
+39 |         lines.append(f"Expanded Chains: {', '.join(result.expanded_chains)}")
+40 |         lines.append(f"\nConclusion: {result.conclusion.summary} (confidence: {result.conclusion.confidence})")
+   |                                                                                                     ^^^^^^^^^^^
+41 |
+42 |         if result.root_causes:
+   |
+
+E501 Line too long (104 > 100)
+  --> src/hilog_agent/renderers/text.py:69:101
+   |
+68 |         if result.stats.total_lines:
+69 |             lines.append(f"\nLog Stats: {result.stats.parsed_lines}/{result.stats.total_lines} parsed, "
+   |                                                                                                     ^^^^
+70 |                          f"{result.stats.in_window_lines} in window, "
+71 |                          f"span {result.stats.time_span_seconds:.1f}s")
+   |
+
+F541 [*] f-string without any placeholders
+  --> src/hilog_agent/renderers/text.py:84:22
+   |
+83 |     elif isinstance(result, AddModuleResult):
+84 |         lines.append(f"Command: add-module")
+   |                      ^^^^^^^^^^^^^^^^^^^^^^
+85 |         lines.append(f"Feature: {result.feature}")
+86 |         lines.append(f"Module: {result.module}")
+   |
+help: Remove extraneous `f` prefix
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/hilog_agent/scoring.py:3:1
+   |
+ 1 |   """Evidence builder, feature scoring, chain scoring, chain status inference."""
+ 2 |
+ 3 | / from __future__ import annotations
+ 4 | |
+ 5 | | from hilog_agent.config import ScoringConfig
+ 6 | | from hilog_agent.hilog.parser import HilogEvent
+ 7 | | from hilog_agent.hilog.matcher import match_logs
+ 8 | | from hilog_agent.models.feature import (
+ 9 | |     FeatureYaml,
+10 | |     CallChain,
+11 | |     CallChainStep,
+12 | |     ExpectedLog,
+13 | |     FailureKeyLog,
+14 | | )
+15 | | from hilog_agent.models.evidence import Evidence, ChainStepStatus
+   | |_________________________________________________________________^
+   |
+help: Organize imports
+
+F401 [*] `hilog_agent.models.feature.CallChainStep` imported but unused
+  --> src/hilog_agent/scoring.py:11:5
+   |
+ 9 |     FeatureYaml,
+10 |     CallChain,
+11 |     CallChainStep,
+   |     ^^^^^^^^^^^^^
+12 |     ExpectedLog,
+13 |     FailureKeyLog,
+   |
+help: Remove unused import
+
+F401 [*] `hilog_agent.models.feature.ExpectedLog` imported but unused
+  --> src/hilog_agent/scoring.py:12:5
+   |
+10 |     CallChain,
+11 |     CallChainStep,
+12 |     ExpectedLog,
+   |     ^^^^^^^^^^^
+13 |     FailureKeyLog,
+14 | )
+   |
+help: Remove unused import
+
+F401 [*] `hilog_agent.models.feature.FailureKeyLog` imported but unused
+  --> src/hilog_agent/scoring.py:13:5
+   |
+11 |     CallChainStep,
+12 |     ExpectedLog,
+13 |     FailureKeyLog,
+   |     ^^^^^^^^^^^^^
+14 | )
+15 | from hilog_agent.models.evidence import Evidence, ChainStepStatus
+   |
+help: Remove unused import
+
+I001 [*] Import block is un-sorted or un-formatted
+ --> tests/conftest.py:1:1
+  |
+1 | / from __future__ import annotations
+2 | |
+3 | | import pytest
+4 | | from pathlib import Path
+  | |________________________^
+5 |
+6 |   FIXTURES = Path(__file__).parent.parent / "fixtures"
+  |
+help: Organize imports
+
+E501 Line too long (126 > 100)
+   --> tests/conftest.py:198:101
+    |
+196 |             "allowed_tools": {
+197 |                 "ask": ["read_feature", "list_features", "read_file", "search_code"],
+198 |                 "analyze-log": ["read_feature", "filter_hilog_by_time", "match_logs_by_patterns", "read_file", "search_code"],
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+199 |                 "add-module": ["read_feature", "read_file", "search_code"],
+200 |             },
+    |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> tests/test_cli_add_module.py:2:1
+   |
+ 1 |   # tests/test_cli_add_module.py
+ 2 | / from __future__ import annotations
+ 3 | |
+ 4 | | import tempfile
+ 5 | | from pathlib import Path
+ 6 | |
+ 7 | | import pytest
+ 8 | | import yaml
+ 9 | | from hilog_agent.config import Config
+10 | | from hilog_agent.store import FeatureStore
+11 | | from hilog_agent.commands.add_module import add_module
+   | |______________________________________________________^
+   |
+help: Organize imports
+
+E501 Line too long (111 > 100)
+  --> tests/test_cli_add_module.py:27:101
+   |
+25 |             "description": "A test feature",
+26 |             "keywords": ["te
+
+[… truncated 17847 chars …]

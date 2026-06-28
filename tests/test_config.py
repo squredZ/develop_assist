@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import os
 import tempfile
-from pathlib import Path
 
-import pytest
 import yaml
+
 from hilog_agent.config import Config, load_config
 
 
@@ -18,9 +17,7 @@ class TestConfig:
         assert cfg.llm.model == "gpt-5.5"
 
     def test_load_from_yaml_file(self, default_config_dict):
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(default_config_dict, f)
             path = f.name
         try:
@@ -30,9 +27,7 @@ class TestConfig:
             os.unlink(path)
 
     def test_cli_overrides_config(self, default_config_dict):
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(default_config_dict, f)
             path = f.name
         try:
@@ -45,9 +40,7 @@ class TestConfig:
     def test_api_key_env_preferred_over_plaintext(self, monkeypatch, default_config_dict):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-env-key")
         default_config_dict["llm"]["api_key"] = "sk-plaintext-key"
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(default_config_dict, f)
             path = f.name
         try:
@@ -58,9 +51,7 @@ class TestConfig:
 
     def test_api_key_secret_str_redacts_in_repr(self, default_config_dict):
         default_config_dict["llm"]["api_key"] = "sk-secret-12345"
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(default_config_dict, f)
             path = f.name
         try:

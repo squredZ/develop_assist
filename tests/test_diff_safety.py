@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import pytest
 import yaml
-from hilog_agent.models.feature import FeatureYaml
+
 from hilog_agent.diff_safety import validate_diff
+from hilog_agent.models.feature import FeatureYaml
 
 
 @pytest.fixture

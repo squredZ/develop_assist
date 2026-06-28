@@ -1,44 +1,44 @@
 """Pydantic v2 models for the Hilog Agent."""
 
-from hilog_agent.models.feature import (
-    FeatureYaml,
-    FeatureMetadata,
-    FeatureModuleIndex,
-    CallChain,
-    CallChainStep,
-    ExpectedLog,
-    FailurePattern,
-    FailureKeyLog,
-    Entrypoint,
-)
-from hilog_agent.models.module import (
-    ModuleYaml,
-    ModuleMetadata,
-    ModuleSymbol,
-    ModuleLog,
-    CandidateStep,
-    FailureSignal,
-    ModuleDependency,
-    ModuleEntrypoint,
-    LogSource,
-)
 from hilog_agent.models.evidence import (
+    AnalysisStats,
+    ChainStepStatus,
     Evidence,
     EvidenceRawRef,
-    ChainStepStatus,
-    AnalysisStats,
+)
+from hilog_agent.models.feature import (
+    CallChain,
+    CallChainStep,
+    Entrypoint,
+    ExpectedLog,
+    FailureKeyLog,
+    FailurePattern,
+    FeatureMetadata,
+    FeatureModuleIndex,
+    FeatureYaml,
+)
+from hilog_agent.models.module import (
+    CandidateStep,
+    FailureSignal,
+    LogSource,
+    ModuleDependency,
+    ModuleEntrypoint,
+    ModuleLog,
+    ModuleMetadata,
+    ModuleSymbol,
+    ModuleYaml,
 )
 from hilog_agent.models.result import (
-    Conclusion,
-    RootCause,
-    CrossChainCorrelation,
+    AddModuleResult,
     AnalysisResult,
     AskResult,
-    AddModuleResult,
-    WrittenFile,
-    ModuleGenerationResult,
+    Conclusion,
+    CrossChainCorrelation,
     FeatureUpdateResult,
+    ModuleGenerationResult,
     RelatedFeatureSuggestion,
+    RootCause,
+    WrittenFile,
 )
 
 __all__ = [

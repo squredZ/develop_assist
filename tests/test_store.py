@@ -1,11 +1,10 @@
 # tests/test_store.py
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
-from hilog_agent.store import FeatureStore
+
 from hilog_agent.config import Config
+from hilog_agent.store import FeatureStore
 
 
 @pytest.fixture

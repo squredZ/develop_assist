@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 
 from hilog_agent.models.result import (
-    AskResult,
-    AnalysisResult,
     AddModuleResult,
+    AnalysisResult,
+    AskResult,
 )
 
 

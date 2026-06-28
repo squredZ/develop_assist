@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,8 +11,8 @@ class EvidenceRawRef(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     file: str = ""
-    line: Optional[int] = None
-    timestamp: Optional[str] = None
+    line: int | None = None
+    timestamp: str | None = None
 
 
 class Evidence(BaseModel):
@@ -29,12 +29,12 @@ class Evidence(BaseModel):
         "chain_match",
     ]
     feature: str = ""
-    chain: Optional[str] = None
-    step: Optional[str] = None
+    chain: str | None = None
+    step: str | None = None
     severity: Literal["high", "medium", "low"] = "low"
     confidence_delta: int = 0
     summary: str
-    raw_ref: Optional[EvidenceRawRef] = None
+    raw_ref: EvidenceRawRef | None = None
 
 
 class ChainStepStatus(BaseModel):
@@ -43,8 +43,12 @@ class ChainStepStatus(BaseModel):
     chain: str
     step_id: str
     status: Literal[
-        "normal", "abnormal", "suspected_abnormal",
-        "not_entered", "not_observed", "unknown",
+        "normal",
+        "abnormal",
+        "suspected_abnormal",
+        "not_entered",
+        "not_observed",
+        "unknown",
     ]
     evidence: list[str] = Field(default_factory=list)
     detail: str = ""

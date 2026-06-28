@@ -3,18 +3,15 @@ from __future__ import annotations
 
 import json
 
-import pytest
+from hilog_agent.models.evidence import AnalysisStats, ChainStepStatus
 from hilog_agent.models.result import (
     AnalysisResult,
     AskResult,
     Conclusion,
     RootCause,
-    AddModuleResult,
-    WrittenFile,
 )
-from hilog_agent.models.evidence import AnalysisStats, ChainStepStatus
-from hilog_agent.renderers.text import render_text
 from hilog_agent.renderers.json_renderer import render_json
+from hilog_agent.renderers.text import render_text
 
 
 class TestTextRenderer:

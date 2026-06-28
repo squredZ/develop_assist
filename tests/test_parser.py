@@ -1,11 +1,8 @@
 # tests/test_parser.py
 from __future__ import annotations
 
-import pytest
-from pathlib import Path
 from hilog_agent.hilog.parser import (
     HilogEvent,
-    HilogParseResult,
     parse_hilog_file,
     parse_hilog_lines,
 )

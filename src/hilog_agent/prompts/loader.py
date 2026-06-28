@@ -30,9 +30,7 @@ class PromptLoader:
         used_placeholders = set(PLACEHOLDER_RE.findall(template))
         missing = used_placeholders - set(variables.keys())
         if missing:
-            raise ValueError(
-                f"Missing template variables for prompt '{name}': {sorted(missing)}"
-            )
+            raise ValueError(f"Missing template variables for prompt '{name}': {sorted(missing)}")
 
         def _replace(m: re.Match) -> str:
             key = m.group(1)

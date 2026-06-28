@@ -3,15 +3,12 @@ from __future__ import annotations
 
 import pytest
 import yaml
+
 from hilog_agent.models.module import (
-    ModuleYaml,
-    ModuleMetadata,
-    ModuleSymbol,
-    ModuleLog,
-    CandidateStep,
-    FailureSignal,
-    ModuleDependency,
     LogSource,
+    ModuleLog,
+    ModuleMetadata,
+    ModuleYaml,
 )
 
 

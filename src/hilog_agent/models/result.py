@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from hilog_agent.models.evidence import Evidence, ChainStepStatus, AnalysisStats
+from hilog_agent.models.evidence import AnalysisStats, ChainStepStatus, Evidence
 
 
 class Conclusion(BaseModel):
@@ -58,9 +58,9 @@ class AnalysisResult(BaseModel):
 
     command: Literal["analyze-log"] = "analyze-log"
     feature: str
-    chain: Optional[str] = None
+    chain: str | None = None
     expanded_chains: list[str] = Field(default_factory=list)
-    question: Optional[str] = None
+    question: str | None = None
     conclusion: Conclusion
     root_causes: list[RootCause] = Field(default_factory=list)
     chain_status: list[ChainStepStatus] = Field(default_factory=list)
@@ -92,9 +92,7 @@ class FeatureUpdateResult(BaseModel):
     updated_feature_yaml: str
     change_summary: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    related_feature_suggestions: list[RelatedFeatureSuggestion] = Field(
-        default_factory=list
-    )
+    related_feature_suggestions: list[RelatedFeatureSuggestion] = Field(default_factory=list)
 
 
 class AddModuleResult(BaseModel):
@@ -107,6 +105,4 @@ class AddModuleResult(BaseModel):
     analysis_summary: list[str] = Field(default_factory=list)
     change_summary: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    related_feature_suggestions: list[RelatedFeatureSuggestion] = Field(
-        default_factory=list
-    )
+    related_feature_suggestions: list[RelatedFeatureSuggestion] = Field(default_factory=list)

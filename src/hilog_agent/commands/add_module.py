@@ -9,15 +9,14 @@ from pathlib import Path
 import yaml
 
 from hilog_agent.config import Config
-from hilog_agent.store import FeatureStore
+from hilog_agent.diff_safety import validate_diff
 from hilog_agent.models.feature import FeatureModuleIndex, FeatureYaml
-from hilog_agent.models.module import ModuleYaml, ModuleMetadata
+from hilog_agent.models.module import ModuleMetadata, ModuleYaml
 from hilog_agent.models.result import (
     AddModuleResult,
     WrittenFile,
-    RelatedFeatureSuggestion,
 )
-from hilog_agent.diff_safety import validate_diff
+from hilog_agent.store import FeatureStore
 
 
 def add_module(
@@ -54,8 +53,7 @@ def add_module(
     # 3. Check if module already exists
     if mod_out.exists() and not force:
         raise ValueError(
-            f"Module '{module}' already exists in feature '{feature}'. "
-            f"Use --force to overwrite."
+            f"Module '{module}' already exists in feature '{feature}'. Use --force to overwrite."
         )
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -93,9 +91,9 @@ def add_module(
     updated_data["metadata"]["version"] = current_feature.metadata.version + 1
     updated_data["metadata"]["updated_at"] = now
     if review:
-        updated_data["metadata"]["review_notes"] = list(
-            current_feature.metadata.review_notes
-        ) + [f"Module '{module}' added via add-module — pending review"]
+        updated_data["metadata"]["review_notes"] = list(current_feature.metadata.review_notes) + [
+            f"Module '{module}' added via add-module — pending review"
+        ]
 
     updated_feature = FeatureYaml.model_validate(updated_data)
 
@@ -130,7 +128,9 @@ def add_module(
         module=module,
         written_files=written,
         analysis_summary=[f"Generated module YAML for {module}"],
-        change_summary=[f"Appended module index for {module}, version → {updated_feature.metadata.version}"],
+        change_summary=[
+            f"Appended module index for {module}, version → {updated_feature.metadata.version}"
+        ],
         warnings=warnings,
         related_feature_suggestions=[],
     )

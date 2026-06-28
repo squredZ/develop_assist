@@ -7,12 +7,12 @@ from datetime import datetime
 from pathlib import Path
 
 from hilog_agent.config import Config
-from hilog_agent.store import FeatureStore
-from hilog_agent.hilog.parser import parse_hilog_file, HilogEvent
 from hilog_agent.hilog.matcher import filter_by_time_window
-from hilog_agent.scoring import score_chain, build_evidence, infer_chain_statuses
+from hilog_agent.hilog.parser import HilogEvent, parse_hilog_file
 from hilog_agent.models.evidence import AnalysisStats
 from hilog_agent.models.result import AnalysisResult, Conclusion, RootCause
+from hilog_agent.scoring import build_evidence, infer_chain_statuses, score_chain
+from hilog_agent.store import FeatureStore
 
 
 def analyze_log(
@@ -57,9 +57,7 @@ def analyze_log(
         unparsed_lines += result.unparsed
 
     # 3. Filter by time window
-    window_events = filter_by_time_window(
-        all_events, time, window_before, window_after
-    )
+    window_events = filter_by_time_window(all_events, time, window_before, window_after)
     in_window = len(window_events)
 
     # 4. Match or read feature
@@ -94,10 +92,7 @@ def analyze_log(
         )
 
     # 5. Score all call chains
-    chain_scores = [
-        (c, score_chain(c, "", window_events, config.scoring))
-        for c in f.call_chains
-    ]
+    chain_scores = [(c, score_chain(c, "", window_events, config.scoring)) for c in f.call_chains]
     chain_scores.sort(key=lambda x: -x[1])
 
     # 6. Expand chains

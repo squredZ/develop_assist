@@ -1,7 +1,6 @@
 # tests/test_llm_client.py
 from __future__ import annotations
 
-import pytest
 from hilog_agent.config import LLMConfig
 from hilog_agent.llm.client import LLMClient
 

@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 import yaml
+
+from hilog_agent.commands.add_module import add_module
 from hilog_agent.config import Config
 from hilog_agent.store import FeatureStore
-from hilog_agent.commands.add_module import add_module
 
 
 @pytest.fixture
@@ -24,7 +25,13 @@ def tmp_features():
             "display_name": "Test",
             "description": "A test feature",
             "keywords": ["test"],
-            "modules": [{"name": "dummy", "yaml_path": "modules/dummy.yaml", "responsibility": "placeholder"}],
+            "modules": [
+                {
+                    "name": "dummy",
+                    "yaml_path": "modules/dummy.yaml",
+                    "responsibility": "placeholder",
+                }
+            ],
             "call_chains": [],
             "failure_patterns": [],
             "metadata": {
@@ -79,11 +86,13 @@ class TestAddModule:
         feat_path = Path(tmp_features) / "test_feature" / "feature.yaml"
         with open(feat_path) as f:
             feat_data = yaml.safe_load(f)
-        feat_data["modules"].append({
-            "name": "existing",
-            "yaml_path": "modules/existing.yaml",
-            "responsibility": "test",
-        })
+        feat_data["modules"].append(
+            {
+                "name": "existing",
+                "yaml_path": "modules/existing.yaml",
+                "responsibility": "test",
+            }
+        )
         with open(feat_path, "w") as f:
             yaml.dump(feat_data, f)
 

@@ -69,16 +69,12 @@ class FeatureStore:
             return errors
 
         if feature.name != name:
-            errors.append(
-                f"feature.yaml name '{feature.name}' does not match directory '{name}'"
-            )
+            errors.append(f"feature.yaml name '{feature.name}' does not match directory '{name}'")
 
         for mod_idx in feature.modules:
             mod_path = feature_dir / mod_idx.yaml_path
             if not mod_path.exists():
-                errors.append(
-                    f"Module YAML missing: {mod_idx.yaml_path}"
-                )
+                errors.append(f"Module YAML missing: {mod_idx.yaml_path}")
                 continue
             try:
                 module = self.read_module(name, mod_idx.name)
@@ -87,9 +83,7 @@ class FeatureStore:
                 continue
 
             if module.name != mod_idx.name:
-                errors.append(
-                    f"Module YAML name '{module.name}' != index name '{mod_idx.name}'"
-                )
+                errors.append(f"Module YAML name '{module.name}' != index name '{mod_idx.name}'")
             module_warnings = module.warnings
             for w in module_warnings:
                 errors.append(f"Warning (module '{mod_idx.name}'): {w}")

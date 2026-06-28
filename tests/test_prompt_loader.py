@@ -1,8 +1,10 @@
 # tests/test_prompt_loader.py
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from hilog_agent.prompts.loader import PromptLoader
 
 

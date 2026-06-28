@@ -13,9 +13,9 @@ def validate_diff(original: FeatureYaml, updated: FeatureYaml) -> list[str]:
     if updated.name != original.name:
         errors.append(f"name changed: '{original.name}' → '{updated.name}'")
     if updated.display_name != original.display_name:
-        errors.append(f"display_name changed")
+        errors.append("display_name changed")
     if updated.description != original.description:
-        errors.append(f"description changed")
+        errors.append("description changed")
     if updated.keywords != original.keywords:
         errors.append("keywords modified")
 
@@ -57,9 +57,7 @@ def validate_diff(original: FeatureYaml, updated: FeatureYaml) -> list[str]:
         upd_step_ids = {s.id for s in uc.steps}
         if not orig_step_ids.issubset(upd_step_ids):
             removed_steps = orig_step_ids - upd_step_ids
-            errors.append(
-                f"Call chain '{oc.name}': steps deleted: {sorted(removed_steps)}"
-            )
+            errors.append(f"Call chain '{oc.name}': steps deleted: {sorted(removed_steps)}")
 
     # Failure patterns: only append allowed
     for ofp in original.failure_patterns:

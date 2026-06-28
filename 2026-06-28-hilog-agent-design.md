@@ -65,11 +65,19 @@ features_dir: ./features
 log_temp_dir: ./.tmp/hilog-agent
 
 analysis:
-  default_window_seconds: 60
+  default_window_before_seconds: 60
+  default_window_after_seconds: 60
   min_feature_score: 5
   feature_score_margin: 3
   max_log_events_for_llm: 200
   max_code_snippets_for_llm: 20
+
+scoring:
+  keyword_hit_weight: 3
+  log_pattern_hit_weight: 5
+  log_tag_hit_weight: 2
+  continuous_step_bonus_per_step: 2
+  missing_required_step_penalty: 5
 
 output:
   format: text
@@ -102,12 +110,21 @@ orchestrator:
   max_llm_rounds: 4
   tool_timeout_seconds: 30
   allowed_tools:
-    - read_feature
-    - list_features
-    - filter_hilog_by_time
-    - match_logs_by_patterns
-    - read_file
-    - search_code
+    ask:
+      - read_feature
+      - list_features
+      - read_file
+      - search_code
+    analyze-log:
+      - read_feature
+      - filter_hilog_by_time
+      - match_logs_by_patterns
+      - read_file
+      - search_code
+    add-module:
+      - read_feature
+      - read_file
+      - search_code
 
 prompts:
   module_generation: prompts/module_generation.md
@@ -206,8 +223,6 @@ metadata:
   version: 1
   updated_at: "2026-06-28 14:35:00"
   review_notes: []
-
-extensions: {}
 ```
 
 Required top-level fields:
@@ -224,7 +239,6 @@ Required top-level fields:
 Optional top-level fields:
 
 - `entrypoints`
-- `extensions`
 
 Validation rules:
 
@@ -240,6 +254,7 @@ Validation rules:
 - `failure_patterns[].related_steps` must reference existing step ids.
 - `failure_patterns[].key_logs[].related_step`, if present, must reference an existing step id.
 - `match_type: regex` patterns must compile.
+- Pydantic `model_config` allows extra fields for forwards compatibility; unknown keys are ignored.
 
 ## 6. Module YAML Schema
 
@@ -330,8 +345,6 @@ metadata:
   generated_by: hilog-agent
   generated_at: "2026-06-28 14:35:00"
   review_notes: []
-
-extensions: {}
 ```
 
 Required top-level fields:
@@ -350,7 +363,8 @@ Optional top-level fields:
 
 - `entrypoints`
 - `dependencies`
-- `extensions`
+- `logs[].source` (optional object with `file`, `line`, `symbol`)
+- `failure_signals[].source` (optional object with `file`, `line`, `symbol`)
 
 Validation rules:
 
@@ -363,10 +377,20 @@ Validation rules:
 - `source.line`, if present, must be `>= 1`.
 - `match_type: regex` patterns must compile.
 - `symbols`, `logs`, `candidate_steps`, and `failure_signals` are required fields but may be empty lists. Empty lists should produce warnings if there are no review notes explaining why.
+- Pydantic `model_config` allows extra fields for forwards compatibility; unknown keys are ignored.
 
 ## 7. Schema Implementation
 
 Use Pydantic v2 for internal schema validation and JSON Schema export.
+
+Engineering baseline:
+
+- **Python**: >= 3.10
+- **Package manager**: uv (or poetry)
+- **Layout**: src-layout (`src/hilog_agent/`)
+- **Type checker**: mypy (strict mode)
+- **Linter + formatter**: ruff
+- **API keys**: use `pydantic.SecretStr` for `api_key` — `repr()` and `str()` auto-redact, preventing accidental leak in stack traces, log output, and `__repr__`.
 
 Primary models:
 
@@ -456,6 +480,21 @@ Chain step statuses:
 - `not_observed`: no evidence exists, but the step cannot be inferred as abnormal.
 - `unknown`: feature knowledge is insufficient.
 
+Verbose scoring output (`--verbose`): for each scored chain, emit a per-step breakdown showing each scoring contribution. Format:
+
+```text
+Chain: normal_capture (score: 42)
+  Step capture_request: normal (expected_log_hit "Start capture" +3,
+    confidence_delta +3)
+  Step image_pipeline_process: suspected_abnormal (missing_required_log
+    "process image" -5)
+  Bonus: 3 consecutive normal steps → +6 (3 × continuous_step_bonus_per_step)
+  ---
+  Total: 42
+```
+
+This allows operators to trace exactly how the agent arrived at a score and which evidence drove the conclusion.
+
 ## 9. ask Flow
 
 Example:
@@ -478,7 +517,7 @@ If the user does not specify a feature:
 
 1. Score candidate features using the question.
 2. If Top 1 passes threshold and margin, answer with that feature.
-3. Otherwise, show Top 3 candidates and ask the user to specify `--feature`.
+3. Otherwise, show Top 3 candidates with scores, exit with code 2 (`EXIT_FEATURE_AMBIGUOUS`), and expect the user to re-invoke with `--feature`. No interactive loop in MVP — the user re-runs the command. For convenience, `--interactive` (optional) enters an arrow-key selection loop that re-invokes the answered query.
 
 Output sections:
 
@@ -501,23 +540,38 @@ agent analyze-log \
   --feature camera_capture
 ```
 
+`--log` accepts multiple files and glob patterns:
+
+```bash
+agent analyze-log --log "logs/*.hilog" ...
+agent analyze-log --log sys.hilog --log app.hilog ...
+```
+
+All log files are unpacked (if needed), parsed, and merged before time filtering. File provenance is preserved per event in evidence `raw_ref.file`.
+
+Time-window options:
+
+- `--window N`: shortcut for `--window-before N --window-after N` (symmetric).
+- `--window-before N`: seconds before center time.
+- `--window-after N`: seconds after center time.
+- At least one of `--window` / `--window-before` / `--window-after` must be specified.
+
 Rules:
 
 - Hilog timestamps include year.
 - `--time` must be a complete timestamp.
-- `--window 60` means 60 seconds before and after center time.
 - Unparsed log lines are counted but excluded from time filtering.
 
 Flow:
 
-1. Unpack log if needed.
-2. Parse hilog lines.
+1. Unpack log file(s) if needed.
+2. Parse hilog lines from all log sources.
 3. Filter events by time window.
 4. Match or read feature.
 5. Score all call chains.
-6. Expand the highest-scoring chain by default.
+6. Expand chains: by default the single highest-scoring chain. Use `--chain <name>` to force a specific chain, or `--top-n-chains N` to expand the top N chains.
 7. Build evidence from expected logs, failure logs, and missing required logs.
-8. Infer chain statuses.
+8. Infer chain statuses. When multiple chains are expanded, include a cross-chain correlation section: if chain A's step is `abnormal` or `suspected_abnormal`, flag downstream chains that depend on it as potentially affected.
 9. Generate root-cause candidates.
 10. Render text or JSON.
 
@@ -526,6 +580,7 @@ Output includes:
 - Conclusion
 - Top root-cause candidates
 - Chain status table
+- Cross-chain correlation (when `--top-n-chains > 1`)
 - Evidence
 - Log stats
 - Warnings
@@ -534,37 +589,47 @@ Root-cause candidates must reference evidence ids. Experience-only suggestions g
 
 ## 11. Scoring
 
+All weights are configurable in `agent.yaml` → `scoring:`.
+
 Feature score:
 
 ```text
 feature_score =
-  question keyword/symptom hits * 3
-+ log key pattern hits * 5
-+ log tag hits * 2
+  question keyword/symptom hits × scoring.keyword_hit_weight
++ log key pattern hits × scoring.log_pattern_hit_weight
++ log tag hits × scoring.log_tag_hit_weight
 ```
 
 Feature auto-selection:
 
 - Top 1 must reach `analysis.min_feature_score`.
 - Top 1 must lead Top 2 by `analysis.feature_score_margin`.
-- Otherwise output Top 3 candidates and ask for `--feature`.
+- Otherwise output Top 3 candidates, exit with code 2, and expect `--feature` on re-invocation.
 
 Chain score:
 
 ```text
 chain_score =
-  question chain keyword/symptom hits * 3
-+ expected log hit weights
-+ failure key log hit weights
-+ continuous step hit bonus
-- missing required step penalty
+  question chain keyword/symptom hits × scoring.keyword_hit_weight
++ Σ expected_log_hit.weight
++ Σ failure_key_log_hit.confidence_weight
++ continuous_step_hit_bonus
+- missing_required_step_penalty
+
+Where:
+  continuous_step_hit_bonus =
+    longest_consecutive_normal_steps × scoring.continuous_step_bonus_per_step
+
+  missing_required_step_penalty =
+    count(missing_required_expected_logs) × scoring.missing_required_step_penalty
 ```
 
 Rules:
 
 - Optional steps do not receive missing penalties.
-- Async steps can add hit score but do not require strict adjacency.
-- Scores must be explainable in verbose output.
+- Async steps can add hit score but do not require strict adjacency for the consecutive bonus.
+- A step whose `optional: true` and whose expected log is `required: true` is contradictory — validation warns.
+- Scores must be explainable in verbose output (see Section 8 for format).
 - Confidence is internally numeric and externally rendered as `high`, `medium`, or `low`.
 
 ## 12. add-module Flow
@@ -592,6 +657,8 @@ Default behavior:
 - If `modules/<module>.yaml` already exists, fail.
 - `--force` allows updating an existing module.
 - `--backup` or `add_module.backup: true` creates timestamped backups before writing.
+- `--dry-run`: execute the full flow (LLM calls, validation) but do not write to disk. Output the generated YAML contents and validation results to stdout so a human can review before committing.
+- `--review`: write both files but set new/updated module's `metadata.generated_by` to include `[pending-review]` and append a review note. Feature `metadata.status` is unchanged (an `active` feature stays `active`). Human operator reviews and removes the marker.
 
 Flow:
 
@@ -668,6 +735,18 @@ Template rules:
 - Prompt instructions are Chinese.
 - YAML and JSON field names are English.
 - Code identifiers, paths, log tags, log patterns, and symbols must not be translated.
+
+Template variables (all prompts):
+
+| Variable | Source | Available in |
+| --- | --- | --- |
+| `{{module_code_path}}` | CLI `--path` argument | `module_generation.md` |
+| `{{feature_yaml}}` | `FeatureStore` read of current `feature.yaml` (serialized as YAML string) | `module_generation.md`, `feature_update.md` |
+| `{{module_name}}` | CLI `--module` argument | `module_generation.md`, `feature_update.md` |
+| `{{feature_name}}` | CLI `--feature` argument | `feature_update.md` |
+| `{{tool_results}}` | ReAct loop: all tool call returns serialized as structured JSON | `module_generation.md` (bounded ReAct mode) |
+
+Tool results are injected into a dedicated `{{tool_results}}` placeholder as a JSON array of `{tool_name, result}` entries. Tool output is summarized if it exceeds `max_code_snippets_for_llm` items.
 
 ### module_generation.md
 
@@ -757,6 +836,27 @@ class AddModuleResult(BaseModel):
     related_feature_suggestions: list[RelatedFeatureSuggestion]
 ```
 
+`LogSource` (shared, optional — appears in logs and failure_signals):
+
+```python
+class LogSource(BaseModel):
+    file: Optional[str] = None
+    line: Optional[int] = None   # >= 1 if present
+    symbol: Optional[str] = None
+```
+
+`AnalysisStats`:
+
+```python
+class AnalysisStats(BaseModel):
+    total_lines: int              # total lines across all log inputs
+    parsed_lines: int             # successfully parsed hilog lines
+    unparsed_lines: int           # lines that failed parsing
+    in_window_lines: int          # parsed lines within the time window
+    time_span_seconds: float      # actual time span of events in window
+    tags_distribution: dict[str, int]  # log tag → count within window
+```
+
 `AnalysisResult`:
 
 ```python
@@ -764,10 +864,12 @@ class AnalysisResult(BaseModel):
     command: Literal["analyze-log"] = "analyze-log"
     feature: str
     chain: Optional[str] = None
+    expanded_chains: list[str] = []  # chain names expanded (all when --top-n-chains)
     question: Optional[str] = None
     conclusion: Conclusion
     root_causes: list[RootCause]
     chain_status: list[ChainStepStatus]
+    cross_chain_correlation: list[CrossChainCorrelation] = []
     evidence: list[Evidence]
     stats: AnalysisStats
     supplemental_suggestions: list[str] = []
@@ -775,6 +877,8 @@ class AnalysisResult(BaseModel):
 ```
 
 `root_causes[].supporting_evidence` and `chain_status[].evidence` must reference existing evidence ids.
+
+Config models use `pydantic.SecretStr` for `api_key` — the `str()` and `repr()` representations are redacted, preventing exposure in tracebacks, debug logs, and verbose output.
 
 MVP JSON output does not include `schema_version`.
 
@@ -791,11 +895,14 @@ MVP JSON output does not include `schema_version`.
 | Zip unpack failure | Fail |
 | Time format invalid | Show expected format |
 | No logs in window | Suggest widening window |
-| Feature auto-match ambiguous | Show Top 3 candidates |
+| Feature auto-match ambiguous | Output Top 3 candidates with scores, exit code 2 (`EXIT_FEATURE_AMBIGUOUS`). User re-runs with `--feature`. |
 | LLM output invalid | Retry up to 3 times |
 | `ask` LLM retries exhausted | Fall back to deterministic summary |
 | `analyze-log` LLM retries exhausted | Fall back to rule result |
 | `add-module` LLM retries exhausted | Fail and write nothing |
+| Template variable missing | Fail with error listing the missing variable name |
+| `--log` glob matches zero files | Fail with "no log files found matching pattern" |
+| Module YAML empty symbols/logs/candidate_steps/failure_signals without review notes | Warn; proceed (accept valid but incomplete knowledge) |
 
 ## 16. Testing Strategy
 
@@ -822,30 +929,39 @@ Unit tests:
 CLI e2e tests:
 
 - `ask --feature`
-- `ask` with feature auto-match
+- `ask` with feature auto-match (successful auto-pick and ambiguous exit code 2)
+- `ask --interactive`
 - `analyze-log` text output
 - `analyze-log --json`
+- `analyze-log --top-n-chains 3`
+- `analyze-log --chain <name>`
+- `analyze-log --window-before 120 --window-after 30`
+- `analyze-log --log "logs/*.hilog"` (multi-file glob)
 - `add-module` creates module YAML and updates feature YAML
 - `add-module` existing module fails without `--force`
 - `add-module --force`
 - `add-module --backup`
+- `add-module --dry-run` (validates but writes nothing)
+- `add-module --review` (writes with review marker)
 
 ## 17. Implementation Order
 
-1. Define Pydantic v2 schemas.
-2. Implement config loading.
-3. Implement FeatureStore and feature directory validation.
-4. Implement hilog parser, time filtering, and pattern matcher.
-5. Implement evidence builder and scoring.
-6. Implement text and JSON renderers.
-7. Implement LLM client and structured output validation.
-8. Add prompt loading and placeholder rendering.
-9. Implement `ask`.
-10. Implement `analyze-log`.
-11. Implement `add-module` module generation.
+Each step includes its corresponding unit tests written immediately after, before moving to the next step. Tests are not deferred to the end.
+
+1. Define Pydantic v2 schemas → write schema validation unit tests.
+2. Implement config loading (incl. `SecretStr` for `api_key`, config precedence) → write config unit tests.
+3. Implement FeatureStore and feature directory validation → write FeatureStore unit tests.
+4. Implement hilog parser, time filtering (asymmetric window support), and pattern matcher → write parser/filter/matcher unit tests.
+5. Implement evidence builder and scoring (all configurable weights) → write scoring unit tests.
+6. Implement text and JSON renderers (incl. verbose scoring breakdown format).
+7. Implement LLM client and structured output validation (with retry loop) → write LLM validation unit tests.
+8. Add prompt loading and placeholder rendering (all template variables per Section 13 table).
+9. Implement `ask` (deterministic + feature auto-match with exit code 2) → write `ask` e2e tests.
+10. Implement `analyze-log` (multi-log, asymmetric window, `--chain`, `--top-n-chains`, cross-chain correlation) → write `analyze-log` e2e tests.
+11. Implement `add-module` module generation (incl. `--dry-run`, `--review`) → write `add-module` e2e tests.
 12. Implement `add-module` feature update.
-13. Implement diff safety validation and write transaction.
-14. Add fixture-level CLI tests.
+13. Implement diff safety validation and write transaction → write diff safety and write transaction unit tests.
+14. Add remaining fixture-level CLI e2e tests for edge cases.
 
 ## 18. Future Work
 

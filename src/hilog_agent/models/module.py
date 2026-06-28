@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import (
     BaseModel,
@@ -16,9 +16,9 @@ from pydantic import (
 class LogSource(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    file: Optional[str] = None
-    line: Optional[int] = Field(default=None, ge=1)
-    symbol: Optional[str] = None
+    file: str | None = None
+    line: int | None = Field(default=None, ge=1)
+    symbol: str | None = None
 
 
 class ModuleMetadata(BaseModel):
@@ -48,18 +48,18 @@ class ModuleLog(BaseModel):
     match_type: Literal["substring", "regex"]
     meaning: str
     evidence_type: str = Field(min_length=1)
-    related_step: Optional[str] = None
+    related_step: str | None = None
     severity: Literal["high", "medium", "low"] = "low"
     confidence_weight: int = Field(default=1, ge=1)
-    source: Optional[LogSource] = None
+    source: LogSource | None = None
 
     @model_validator(mode="after")
-    def regex_must_compile(self) -> "ModuleLog":
+    def regex_must_compile(self) -> ModuleLog:
         if self.match_type == "regex":
             try:
                 re.compile(self.pattern)
             except re.error as e:
-                raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}")
+                raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}") from e
         return self
 
 
@@ -87,17 +87,17 @@ class FailureSignal(BaseModel):
     severity: Literal["high", "medium", "low"]
     suggested_cause: str = ""
     meaning: str = ""
-    related_step: Optional[str] = None
+    related_step: str | None = None
     confidence_weight: int = Field(default=1, ge=1)
-    source: Optional[LogSource] = None
+    source: LogSource | None = None
 
     @model_validator(mode="after")
-    def regex_must_compile(self) -> "FailureSignal":
+    def regex_must_compile(self) -> FailureSignal:
         if self.match_type == "regex":
             try:
                 re.compile(self.pattern)
             except re.error as e:
-                raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}")
+                raise ValueError(f"regex pattern '{self.pattern}' does not compile: {e}") from e
         return self
 
 
@@ -119,7 +119,7 @@ class ModuleDependency(BaseModel):
     type: str = "module"
     direction: Literal["input", "output", "bidirectional"] = "input"
     reason: str = ""
-    source: Optional[LogSource] = None
+    source: LogSource | None = None
 
 
 class ModuleYaml(BaseModel):
@@ -138,7 +138,7 @@ class ModuleYaml(BaseModel):
     metadata: ModuleMetadata
 
     @model_validator(mode="after")
-    def candidate_step_ids_unique(self) -> "ModuleYaml":
+    def candidate_step_ids_unique(self) -> ModuleYaml:
         seen: set[str] = set()
         for cs in self.candidate_steps:
             if cs.id in seen:
@@ -147,7 +147,7 @@ class ModuleYaml(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def log_related_steps_exist(self) -> "ModuleYaml":
+    def log_related_steps_exist(self) -> ModuleYaml:
         step_ids = {cs.id for cs in self.candidate_steps}
         for log in self.logs:
             if log.related_step and log.related_step not in step_ids:
@@ -158,7 +158,7 @@ class ModuleYaml(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def failure_signal_related_steps_exist(self) -> "ModuleYaml":
+    def failure_signal_related_steps_exist(self) -> ModuleYaml:
         step_ids = {cs.id for cs in self.candidate_steps}
         for fs in self.failure_signals:
             if fs.related_step and fs.related_step not in step_ids:
@@ -169,7 +169,7 @@ class ModuleYaml(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def empty_lists_without_review_notes_warn(self) -> "ModuleYaml":
+    def empty_lists_without_review_notes_warn(self) -> ModuleYaml:
         # Warnings are surfaced via the `warnings` property below.
         return self
 
