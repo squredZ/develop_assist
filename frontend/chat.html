@@ -1179,16 +1179,18 @@ async function sendMessage() {
 function handleEvent(type, data, bubble) {
   switch (type) {
     case 'thinking': {
-      let block = bubble.querySelector('.thinking-block:last-child');
-      // If the last thinking block is already finalized, start a new one
-      if (block && block.querySelector('.thinking-label').textContent.includes('思考过程')) {
-        block = null;
-      }
+      let block = bubble.querySelector('.thinking-block');
       if (!block) {
         block = document.createElement('div');
         block.className = 'thinking-block';
-        block.innerHTML = '<div class="thinking-label"><span>⟐</span> 思考中...</div><span class="thinking-text" style="display:none"></span>';
+        block.innerHTML = '<div class="thinking-label"><span>⟐</span> 思考中...</div><span class="thinking-text"></span>';
         bubble.insertBefore(block, bubble.lastElementChild);
+      } else {
+        // Reuse the same block across all rounds — reset label if finalized
+        const label = block.querySelector('.thinking-label');
+        if (label && label.textContent.includes('思考过程')) {
+          label.innerHTML = '<span>⟐</span> 思考中...';
+        }
       }
       const span = block.querySelector('.thinking-text');
       span.textContent += data.text || '';
@@ -1196,7 +1198,7 @@ function handleEvent(type, data, bubble) {
     }
 
     case 'tool_call': {
-      _finalizeThinking(bubble);
+      _markThinkingDone(bubble);
       const block = document.createElement('details');
       block.className = 'tool-call-block';
       const argsPreview = JSON.stringify(data.args).length > 60
@@ -1211,7 +1213,7 @@ function handleEvent(type, data, bubble) {
     }
 
     case 'tool_result': {
-      _finalizeThinking(bubble);
+      _markThinkingDone(bubble);
       const block = document.createElement('details');
       block.className = 'tool-result-block';
       block.innerHTML = `<summary><span class="tool-name">${escapeHtml(data.tool)}</span> <span class="tool-args">返回结果</span></summary>
@@ -1221,7 +1223,7 @@ function handleEvent(type, data, bubble) {
     }
 
     case 'message': {
-      _finalizeThinking(bubble);
+      _markThinkingDone(bubble);
       const cursor = bubble.querySelector('.cursor-blink');
       const node = document.createTextNode(data.content || '');
       if (cursor) {
@@ -1233,7 +1235,6 @@ function handleEvent(type, data, bubble) {
     }
 
     case 'final_answer': {
-      _finalizeThinking(bubble);
       break;
     }
 
@@ -1251,16 +1252,13 @@ function handleEvent(type, data, bubble) {
 // ============================================================
 // Helpers
 // ============================================================
-function _finalizeThinking(bubble) {
-  /* Reveal accumulated thinking text and update label. */
-  const block = bubble.querySelector('.thinking-block:last-child');
+function _markThinkingDone(bubble) {
+  /* Update thinking label from '思考中...' to '思考过程' (no-op if already done). */
+  const block = bubble.querySelector('.thinking-block');
   if (!block) return;
-  const span = block.querySelector('.thinking-text');
-  if (!span) return;
-  if (span.textContent.trim()) {
-    span.style.display = '';
-    const label = block.querySelector('.thinking-label');
-    if (label) label.innerHTML = '<span>⟐</span> 思考过程';
+  const label = block.querySelector('.thinking-label');
+  if (label && label.textContent.includes('思考中')) {
+    label.innerHTML = '<span>⟐</span> 思考过程';
   }
 }
 

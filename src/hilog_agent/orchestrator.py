@@ -42,12 +42,19 @@ class ToolRegistry:
 
     def list_tools(self) -> list[dict[str, Any]]:
         """Return OpenAI-compatible tool definitions."""
+        feature_hint = ""
+        try:
+            names = self._store.list_features()
+            if names:
+                feature_hint = f" Available: {', '.join(names)}."
+        except Exception:
+            pass
         return [
             {
                 "type": "function",
                 "function": {
                     "name": "read_feature",
-                    "description": "Read a feature's full feature.yaml knowledge",
+                    "description": "Read a feature's full feature.yaml knowledge" + feature_hint,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -86,7 +93,10 @@ class ToolRegistry:
                 return result
             except ValueError as e:
                 logger.warning("read_feature(%s) failed: %s", name, e)
-                return json.dumps({"error": str(e)})
+                available = self._store.list_features()
+                return json.dumps({
+                    "error": f"Feature '{name}' not found. Available features: {', '.join(available) or '(none)'}",
+                }, ensure_ascii=False)
 
         logger.warning("unknown tool requested: %s", tool_name)
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
