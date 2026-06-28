@@ -8,6 +8,7 @@ as distinct visual components.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any
@@ -15,6 +16,8 @@ from typing import Any
 from hilog_agent.config import Config
 from hilog_agent.llm.client import LLMClient
 from hilog_agent.store import FeatureStore
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +72,7 @@ class ToolRegistry:
 
     def call(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """Execute a tool by name, return JSON string result."""
+        logger.info("tool call: %s(%s)", tool_name, arguments)
         if tool_name == "list_features":
             names = self._store.list_features()
             return json.dumps({"features": names}, ensure_ascii=False)
@@ -77,10 +81,14 @@ class ToolRegistry:
             name = arguments.get("feature_name", "")
             try:
                 f = self._store.read_feature(name)
-                return json.dumps(f.model_dump(), ensure_ascii=False, indent=2)
+                result = json.dumps(f.model_dump(), ensure_ascii=False, indent=2)
+                logger.debug("read_feature(%s) → %d chars", name, len(result))
+                return result
             except ValueError as e:
+                logger.warning("read_feature(%s) failed: %s", name, e)
                 return json.dumps({"error": str(e)})
 
+        logger.warning("unknown tool requested: %s", tool_name)
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
 
@@ -113,10 +121,22 @@ def run_react_loop(
     max_tool_calls = config.orchestrator.max_tool_calls
     tool_call_count = 0
 
+    logger.info(
+        "ReAct loop start — max_rounds=%d, max_tool_calls=%d, messages=%d",
+        max_rounds,
+        max_tool_calls,
+        len(messages),
+    )
+
     system_prompt = _build_system_prompt(store)
 
-    for _round_idx in range(max_rounds):
+    for round_idx in range(max_rounds):
+        logger.debug(
+            "round %d/%d — tool_calls so far: %d", round_idx + 1, max_rounds, tool_call_count
+        )
+
         if tool_call_count >= max_tool_calls:
+            logger.warning("max tool calls reached (%d)", max_tool_calls)
             yield SSEEvent(
                 event="error",
                 data={"message": f"Reached max tool calls ({max_tool_calls})"},
@@ -182,6 +202,9 @@ def run_react_loop(
 
             # After stream ends — process any tool calls
             if tool_calls_buf:
+                logger.info(
+                    "round %d: LLM requested %d tool call(s)", round_idx + 1, len(tool_calls_buf)
+                )
                 assistant_msg: dict[str, Any] = {
                     "role": "assistant",
                     "content": "".join(content_buf) or None,
@@ -206,6 +229,9 @@ def run_react_loop(
                     try:
                         args = json.loads(tc["function"]["arguments"])
                     except json.JSONDecodeError:
+                        logger.warning(
+                            "failed to parse tool call arguments: %s", tc["function"]["arguments"]
+                        )
                         args = {}
 
                     yield SSEEvent(
@@ -228,13 +254,13 @@ def run_react_loop(
                         }
                     )
 
-                # Loop back for next round with tool results
                 continue
 
             # No tool calls — final answer
             final_text = "".join(content_buf)
             messages.append({"role": "assistant", "content": final_text})
 
+            logger.info("ReAct loop done — final answer %d chars", len(final_text))
             yield SSEEvent(
                 event="final_answer",
                 data={"content": final_text},
@@ -242,12 +268,14 @@ def run_react_loop(
             return
 
         except Exception as e:
+            logger.exception("ReAct loop error in round %d", round_idx + 1)
             yield SSEEvent(
                 event="error",
                 data={"message": str(e)},
             )
             return
 
+    logger.warning("ReAct loop exhausted — max_rounds=%d", max_rounds)
     yield SSEEvent(
         event="error",
         data={"message": f"Reached max LLM rounds ({max_rounds})"},

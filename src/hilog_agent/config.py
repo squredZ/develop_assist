@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class AnalysisConfig(BaseModel):
@@ -130,8 +133,12 @@ def load_config(
     data: dict[str, Any] = {}
     path = Path(config_path)
     if path.exists():
+        logger.info("loading config from %s", path)
         with open(path) as f:
             data = yaml.safe_load(f) or {}
+    else:
+        logger.info("config file not found at %s — using defaults", path)
     if cli_overrides:
+        logger.debug("applying CLI overrides: %s", list(cli_overrides.keys()))
         data = deep_merge(data, cli_overrides)
     return Config.model_validate(data)

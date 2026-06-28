@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from datetime import datetime
 
@@ -11,9 +12,12 @@ from hilog_agent.commands.add_module import add_module
 from hilog_agent.commands.analyze_log import analyze_log
 from hilog_agent.commands.ask import ask
 from hilog_agent.config import load_config
+from hilog_agent.logging import setup_logging
 from hilog_agent.renderers.json_renderer import render_json
 from hilog_agent.renderers.text import render_text
 from hilog_agent.store import FeatureStore
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -22,12 +26,15 @@ from hilog_agent.store import FeatureStore
 @click.pass_context
 def cli(ctx, config_path, verbose):
     """Hilog Agent — feature Q&A, log analysis, and module knowledge generation."""
+    setup_logging(verbose=verbose)
     ctx.ensure_object(dict)
+    logger.info("loading config from %s", config_path)
     cfg = load_config(config_path)
     if verbose:
         cfg.output.verbose = True
     ctx.obj["config"] = cfg
     ctx.obj["store"] = FeatureStore(cfg)
+    logger.info("CLI ready — %d features available", len(ctx.obj["store"].list_features()))
 
 
 @cli.command()
@@ -42,6 +49,7 @@ def ask_cmd(ctx, feature, question, no_llm, json_output):
     """Answer a feature question."""
     cfg = ctx.obj["config"]
     store = ctx.obj["store"]
+    logger.info("ask command: feature=%s question='%s'", feature, question[:80])
     result = ask(feature=feature, question=question, store=store, config=cfg, no_llm=no_llm)
 
     if json_output:
@@ -100,9 +108,13 @@ def analyze_log_cmd(
     try:
         ct = datetime.strptime(center_time, "%Y-%m-%d %H:%M")
     except ValueError:
+        logger.error("invalid --time format: '%s'", center_time)
         click.echo("Error: --time must be 'YYYY-MM-DD HH:MM'", err=True)
         sys.exit(1)
 
+    logger.info(
+        "analyze-log: %d log path(s), time=%s, window=%d/%d", len(log_paths), center_time, wb, wa
+    )
     result = analyze_log(
         log_paths=list(log_paths),
         time=ct,
@@ -135,6 +147,9 @@ def add_module_cmd(ctx, feature, module, code_path, force, backup, dry_run, revi
     """Generate module knowledge and update feature YAML."""
     cfg = ctx.obj["config"]
     store = ctx.obj["store"]
+    logger.info(
+        "add-module: feature=%s module=%s force=%s dry_run=%s", feature, module, force, dry_run
+    )
 
     result = add_module(
         feature=feature,

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from typing import Any
 
 from openai import OpenAI
 
 from hilog_agent.config import LLMConfig
+
+logger = logging.getLogger(__name__)
 
 
 class LLMClient:
@@ -24,6 +27,12 @@ class LLMClient:
             base_url=config.base_url,
             api_key=key_str,
             timeout=float(config.timeout_seconds),
+        )
+        logger.info(
+            "LLM client initialized: model=%s base_url=%s timeout=%ds",
+            config.model,
+            config.base_url,
+            config.timeout_seconds,
         )
 
     @property
@@ -57,12 +66,10 @@ class LLMClient:
             "stream": stream,
         }
 
-        # Thinking mode enabled by default
         effort = self._cfg.reasoning.effort
         if effort:
             kwargs["reasoning_effort"] = effort
 
-        # Structured output via json_schema
         if json_schema and self._cfg.structured_output == "json_schema":
             kwargs["response_format"] = {
                 "type": "json_schema",
@@ -72,19 +79,34 @@ class LLMClient:
                     "strict": True,
                 },
             }
-            # Structured output and streaming are mutually exclusive in OpenAI API
             kwargs["stream"] = False
+            logger.debug("structured output mode — streaming disabled")
 
-        if stream:
-            chunks: list[str] = []
-            response = self._client.chat.completions.create(**kwargs)
-            for chunk in response:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    chunks.append(chunk.choices[0].delta.content)
-            return "".join(chunks)
-        else:
-            response = self._client.chat.completions.create(**kwargs)
-            return response.choices[0].message.content or ""
+        logger.debug(
+            "LLM chat: model=%s stream=%s max_tokens=%d",
+            self._cfg.model,
+            kwargs["stream"],
+            kwargs["max_tokens"],
+        )
+
+        try:
+            if stream:
+                chunks: list[str] = []
+                response = self._client.chat.completions.create(**kwargs)
+                for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        chunks.append(chunk.choices[0].delta.content)
+                result = "".join(chunks)
+                logger.info("LLM chat complete — %d chars from %d chunks", len(result), len(chunks))
+                return result
+            else:
+                response = self._client.chat.completions.create(**kwargs)
+                result = response.choices[0].message.content or ""
+                logger.info("LLM chat complete — %d chars", len(result))
+                return result
+        except Exception:
+            logger.exception("LLM API call failed")
+            raise
 
     def chat_stream(
         self,
@@ -107,7 +129,15 @@ class LLMClient:
         if effort:
             kwargs["reasoning_effort"] = effort
 
-        response = self._client.chat.completions.create(**kwargs)
-        for chunk in response:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+        logger.debug("LLM chat_stream: model=%s", self._cfg.model)
+        chunk_count = 0
+        try:
+            response = self._client.chat.completions.create(**kwargs)
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    chunk_count += 1
+                    yield chunk.choices[0].delta.content
+            logger.info("LLM stream complete — %d chunks", chunk_count)
+        except Exception:
+            logger.exception("LLM streaming call failed")
+            raise

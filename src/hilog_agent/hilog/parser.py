@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 HILOG_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+"
@@ -63,12 +66,21 @@ def parse_hilog_lines(lines: list[str]) -> tuple[list[HilogEvent], list[str]]:
 def parse_hilog_file(path: str | Path) -> HilogParseResult:
     """Parse a hilog text file on disk."""
     path = Path(path)
+    logger.info("parsing hilog file: %s", path)
     with open(path) as f:
         lines = f.readlines()
     events, unparsed_lines = parse_hilog_lines(lines)
-    return HilogParseResult(
+    result = HilogParseResult(
         events=events,
         total_lines=len(lines),
         parsed=len(events),
         unparsed=len(unparsed_lines),
     )
+    logger.info(
+        "parsed %s: %d total, %d parsed, %d unparsed",
+        path.name,
+        result.total_lines,
+        result.parsed,
+        result.unparsed,
+    )
+    return result

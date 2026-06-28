@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from hilog_agent.models.feature import FeatureYaml
+
+logger = logging.getLogger(__name__)
 
 
 def validate_diff(original: FeatureYaml, updated: FeatureYaml) -> list[str]:
@@ -77,4 +81,8 @@ def validate_diff(original: FeatureYaml, updated: FeatureYaml) -> list[str]:
         if not set(ofp.possible_causes).issubset(set(ufp.possible_causes)):
             errors.append(f"Failure pattern '{ofp.symptom}': possible_causes removed")
 
+    if errors:
+        logger.warning("diff safety — %d violation(s): %s", len(errors), errors)
+    else:
+        logger.debug("diff safety passed")
     return errors

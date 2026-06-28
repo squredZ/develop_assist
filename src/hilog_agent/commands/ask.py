@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+
 from hilog_agent.config import Config
 from hilog_agent.models.result import AskResult
 from hilog_agent.scoring import score_feature
 from hilog_agent.store import FeatureStore
+
+logger = logging.getLogger(__name__)
 
 
 def ask(
@@ -18,9 +22,11 @@ def ask(
 ) -> AskResult:
     """Answer a feature question. If feature is None, auto-match from the question."""
     if feature is not None:
+        logger.info("ask with explicit feature='%s'", feature)
         try:
             f = store.read_feature(feature)
         except ValueError as e:
+            logger.warning("feature '%s' not found", feature)
             return AskResult(
                 feature=feature,
                 question=question,
@@ -30,6 +36,7 @@ def ask(
         return _answer_from_feature(f, question)
 
     # Auto-match
+    logger.info("ask auto-match — question='%s'", question[:80])
     names = store.list_features()
     if not names:
         return AskResult(
@@ -59,11 +66,16 @@ def ask(
     margin = config.analysis.feature_score_margin
     threshold = config.analysis.min_feature_score
 
+    logger.info("auto-match candidates: %s", [(n, s) for n, s in scored[:3]])
+
     if top[1] >= threshold and (len(scored) == 1 or (scored[1][1] + margin <= top[1])):
+        logger.info("auto-matched → '%s' (score=%d)", top[0], top[1])
         f = store.read_feature(top[0])
         return _answer_from_feature(f, question)
 
-    # Ambiguous — return candidates
+    logger.warning(
+        "auto-match ambiguous — top score=%d < threshold=%d or margin=%d", top[1], threshold, margin
+    )
     candidates = "\n".join(f"  {name} (score: {s})" for name, s in scored[:3])
     return AskResult(
         feature="",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,8 @@ from hilog_agent.models.result import (
     WrittenFile,
 )
 from hilog_agent.store import FeatureStore
+
+logger = logging.getLogger(__name__)
 
 
 def add_module(
@@ -45,13 +48,20 @@ def add_module(
     mod_out = feat_dir / "modules" / f"{module}.yaml"
 
     if not feat_dir.exists():
+        logger.error("feature dir not found: %s", feat_dir)
         raise ValueError(f"Feature directory '{feature}' not found under {features_dir}")
 
     # 2. Read and validate current feature.yaml
     current_feature = store.read_feature(feature)
+    logger.info(
+        "current feature: name=%s version=%d",
+        current_feature.name,
+        current_feature.metadata.version,
+    )
 
     # 3. Check if module already exists
     if mod_out.exists() and not force:
+        logger.warning("module '%s' already exists, --force not set", module)
         raise ValueError(
             f"Module '{module}' already exists in feature '{feature}'. Use --force to overwrite."
         )
@@ -100,6 +110,7 @@ def add_module(
     # Diff safety
     diff_errors = validate_diff(current_feature, updated_feature)
     if diff_errors:
+        logger.error("diff safety failed: %s", diff_errors)
         raise ValueError(f"Diff safety validation failed: {'; '.join(diff_errors)}")
 
     # Write (unless dry_run)
@@ -108,11 +119,13 @@ def add_module(
             backup_path = mod_out.with_suffix(f".yaml.bak.{now.replace(' ', '_')}")
             os.rename(str(mod_out), str(backup_path))
             written.append(WrittenFile(path=str(backup_path), action="backup_created"))
+            logger.info("backup created: %s", backup_path)
 
         os.makedirs(str(mod_out.parent), exist_ok=True)
         with open(mod_out, "w") as f:
             yaml.dump(module_yaml.model_dump(exclude_none=True), f, allow_unicode=True)
         written.append(WrittenFile(path=str(mod_out), action="created"))
+        logger.info("module YAML written: %s", mod_out)
 
         feat_yaml_path = feat_dir / "feature.yaml"
         if backup:
@@ -122,6 +135,13 @@ def add_module(
         with open(feat_yaml_path, "w") as f:
             yaml.dump(updated_feature.model_dump(exclude_none=True), f, allow_unicode=True)
         written.append(WrittenFile(path=str(feat_yaml_path), action="updated"))
+        logger.info(
+            "feature.yaml updated: %s (version=%d)",
+            feat_yaml_path,
+            updated_feature.metadata.version,
+        )
+    else:
+        logger.info("dry-run — no files written")
 
     return AddModuleResult(
         feature=feature,

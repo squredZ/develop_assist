@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import glob as glob_mod
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from hilog_agent.models.evidence import AnalysisStats
 from hilog_agent.models.result import AnalysisResult, Conclusion, RootCause
 from hilog_agent.scoring import build_evidence, infer_chain_statuses, score_chain
 from hilog_agent.store import FeatureStore
+
+logger = logging.getLogger(__name__)
 
 
 def analyze_log(
@@ -28,6 +31,13 @@ def analyze_log(
     top_n_chains: int = 1,
 ) -> AnalysisResult:
     """Run the full analyze-log pipeline."""
+    logger.info(
+        "analyze-log start — %d path(s), time=%s, window=[%d,%d]",
+        len(log_paths),
+        time,
+        window_before,
+        window_after,
+    )
 
     # 1. Collect all log files (expand globs)
     all_files: list[Path] = []
@@ -42,7 +52,10 @@ def analyze_log(
                 all_files.append(p)
 
     if not all_files:
+        logger.error("no log files found for patterns: %s", log_paths)
         raise ValueError(f"No log files found matching patterns: {log_paths}")
+
+    logger.info("collected %d log file(s): %s", len(all_files), [f.name for f in all_files])
 
     # 2. Parse all hilog sources
     all_events: list[HilogEvent] = []
@@ -80,6 +93,7 @@ def analyze_log(
     try:
         f = store.read_feature(feature)
     except ValueError:
+        logger.warning("feature '%s' not found", feature)
         return AnalysisResult(
             feature=feature,
             conclusion=Conclusion(summary=f"Feature '{feature}' not found"),
@@ -91,9 +105,12 @@ def analyze_log(
             ),
         )
 
+    logger.info("feature '%s' loaded — %d call chain(s)", f.name, len(f.call_chains))
+
     # 5. Score all call chains
     chain_scores = [(c, score_chain(c, "", window_events, config.scoring)) for c in f.call_chains]
     chain_scores.sort(key=lambda x: -x[1])
+    logger.info("chain scores: %s", [(c.name, s) for c, s in chain_scores])
 
     # 6. Expand chains
     chains_to_expand: list[str] = []
@@ -103,6 +120,8 @@ def analyze_log(
         chains_to_expand = [c.name for c, _ in chain_scores[:top_n_chains]]
     else:
         chains_to_expand = [chain_scores[0][0].name] if chain_scores else []
+
+    logger.info("expanding %d chain(s): %s", len(chains_to_expand), chains_to_expand)
 
     # 7-9. Build evidence, infer statuses, generate root causes
     all_evidence = []
@@ -141,6 +160,10 @@ def analyze_log(
     conclusion_text = "Analysis complete"
     if not root_causes:
         conclusion_text = "No abnormal steps detected in the time window"
+
+    logger.info(
+        "analyze-log done — %d evidence, %d root cause(s)", len(all_evidence), len(root_causes)
+    )
 
     return AnalysisResult(
         feature=f.name,

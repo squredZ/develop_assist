@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from hilog_agent.config import ScoringConfig
 from hilog_agent.hilog.matcher import match_logs
 from hilog_agent.hilog.parser import HilogEvent
@@ -10,6 +12,8 @@ from hilog_agent.models.feature import (
     CallChain,
     FeatureYaml,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def score_feature(
@@ -49,6 +53,7 @@ def score_feature(
                     score += sc.log_tag_hit_weight * 2
                     break
 
+    logger.debug("feature_score(%s, '%s') = %d", feature.name, question[:40], score)
     return score
 
 
@@ -78,6 +83,7 @@ def score_chain(
             if hits:
                 score += elog.weight * sc.log_pattern_hit_weight
 
+    missing_count = 0
     for step in chain.steps:
         if step.optional:
             continue
@@ -93,10 +99,18 @@ def score_chain(
             )
             if not hits:
                 score -= sc.missing_required_step_penalty
+                missing_count += 1
 
     consecutive = _longest_consecutive_normal(chain, events)
     score += consecutive * sc.continuous_step_bonus_per_step
 
+    logger.debug(
+        "chain_score(%s) = %d (missing=%d, consecutive=%d)",
+        chain.name,
+        score,
+        missing_count,
+        consecutive,
+    )
     return score
 
 
@@ -213,6 +227,7 @@ def build_evidence(
                         )
                     )
 
+    logger.info("built %d evidence items for chain '%s'", len(evidence), chain.name)
     return evidence
 
 
@@ -250,6 +265,8 @@ def infer_chain_statuses(
             status = "not_observed"
         else:
             status = "unknown"
+
+        logger.debug("step '%s/%s' → %s (evidence=%d)", chain.name, step.id, status, len(ev_ids))
 
         statuses.append(
             ChainStepStatus(

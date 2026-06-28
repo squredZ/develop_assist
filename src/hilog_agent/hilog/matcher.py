@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal
 
 from hilog_agent.hilog.parser import HilogEvent
+
+logger = logging.getLogger(__name__)
 
 
 def filter_by_time_window(
@@ -19,7 +22,15 @@ def filter_by_time_window(
     """Return events within [center - before_seconds, center + after_seconds]."""
     start = center - timedelta(seconds=before_seconds)
     end = center + timedelta(seconds=after_seconds)
-    return [e for e in events if start <= e.timestamp <= end]
+    result = [e for e in events if start <= e.timestamp <= end]
+    logger.debug(
+        "time window [%s .. %s]: %d/%d events in window",
+        start.strftime("%H:%M:%S"),
+        end.strftime("%H:%M:%S"),
+        len(result),
+        len(events),
+    )
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,4 +65,11 @@ def match_logs(
             if m:
                 results.append(MatchResult(event=evt, match_text=m.group()))
 
+    logger.debug(
+        "match_logs(tag=%s, pattern='%s', type=%s) → %d hits",
+        tag,
+        pattern,
+        match_type,
+        len(results),
+    )
     return results

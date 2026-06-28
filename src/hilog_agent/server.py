@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -15,9 +16,13 @@ from hilog_agent.commands.add_module import add_module
 from hilog_agent.commands.analyze_log import analyze_log
 from hilog_agent.commands.ask import ask
 from hilog_agent.config import load_config
+from hilog_agent.logging import setup_logging
 from hilog_agent.orchestrator import run_react_loop
 from hilog_agent.renderers.json_renderer import render_json
 from hilog_agent.store import FeatureStore
+
+logger = logging.getLogger(__name__)
+setup_logging()
 
 # ---------------------------------------------------------------
 # Global state (single-user desktop app — no concurrency needed)
@@ -91,6 +96,12 @@ class AddModuleRequest(BaseModel):
 @app.post("/api/chat/stream")
 async def chat_stream(req: ChatRequest, request: Request):
     """Streaming chat — SSE endpoint yielding thinking/tool_call/tool_result/message/final_answer."""  # noqa: E501
+    logger.info(
+        "chat/stream: session=%s question='%s' feature=%s",
+        req.session_id,
+        req.question[:80],
+        req.feature,
+    )
     session = _get_or_create_session(req.session_id)
     session.append({"role": "user", "content": req.question})
 
@@ -107,7 +118,6 @@ async def chat_stream(req: ChatRequest, request: Request):
                             f"Feature knowledge:\n{render_json(f)}"
                         ),
                     }
-                    # Inject before the user message for this call
                     msgs = list(session)
                     msgs.insert(-1, ctx_msg)
                 except ValueError:
@@ -121,18 +131,19 @@ async def chat_stream(req: ChatRequest, request: Request):
                 config=_config,
                 question=req.question,
             ):
-                # Check for client disconnect
                 if await request.is_disconnected():
+                    logger.info("client disconnected — stopping SSE stream")
                     break
                 yield {
                     "event": evt.event,
                     "data": json.dumps(evt.data, ensure_ascii=False),
                 }
 
-        except Exception as e:
+        except Exception:
+            logger.exception("chat/stream error")
             yield {
                 "event": "error",
-                "data": json.dumps({"message": str(e)}),
+                "data": json.dumps({"message": "Internal server error"}),
             }
 
     return EventSourceResponse(event_generator())
@@ -162,6 +173,7 @@ async def get_feature(name: str):
 @app.post("/api/analyze-log")
 async def analyze_log_endpoint(req: AnalyzeLogRequest):
     """Run the analyze-log pipeline (non-streaming, returns full result)."""
+    logger.info("analyze-log API: %d log path(s), feature=%s", len(req.log_paths), req.feature)
     try:
         ct = datetime.strptime(req.time, "%Y-%m-%d %H:%M")
     except ValueError:
@@ -186,6 +198,7 @@ async def analyze_log_endpoint(req: AnalyzeLogRequest):
 @app.post("/api/ask")
 async def ask_endpoint(req: ChatRequest):
     """Deterministic ask (no LLM needed)."""
+    logger.info("ask API: feature=%s", req.feature)
     result = ask(
         feature=req.feature,
         question=req.question,
@@ -199,6 +212,7 @@ async def ask_endpoint(req: ChatRequest):
 @app.post("/api/add-module")
 async def add_module_endpoint(req: AddModuleRequest):
     """Add or update a module."""
+    logger.info("add-module API: feature=%s module=%s", req.feature, req.module)
     try:
         result = add_module(
             feature=req.feature,
@@ -228,6 +242,7 @@ async def list_sessions():
 async def clear_session(session_id: str):
     """Clear a conversation session."""
     _sessions.pop(session_id, None)
+    logger.info("session cleared: %s", session_id)
     return {"status": "cleared", "session_id": session_id}
 
 
