@@ -124,26 +124,22 @@ async def chat_stream(req: ChatRequest, request: Request):
 
     async def event_generator():
         try:
-            # If feature specified, prepend feature context
+            # If feature specified, prepend feature context into session
             if req.feature:
                 try:
                     f = _store.read_feature(req.feature)
-                    ctx_msg = {
+                    session.append({
                         "role": "system",
                         "content": (
                             f"User specified feature: {req.feature}\n"
                             f"Feature knowledge:\n{render_json(f)}"
                         ),
-                    }
-                    msgs = list(session)
-                    msgs.insert(-1, ctx_msg)
+                    })
                 except ValueError:
-                    msgs = list(session)
-            else:
-                msgs = list(session)
+                    pass
 
             for evt in run_react_loop(
-                messages=msgs,
+                messages=session,
                 store=_store,
                 config=_config,
                 question=req.question,

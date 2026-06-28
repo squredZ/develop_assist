@@ -9,11 +9,17 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 from collections.abc import Generator
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from hilog_agent.config import Config
+from hilog_agent.hilog.matcher import filter_by_time_window, match_logs
+from hilog_agent.hilog.parser import parse_hilog_file
 from hilog_agent.llm.client import LLMClient
 from hilog_agent.store import FeatureStore
 
@@ -39,6 +45,18 @@ class ToolRegistry:
     def __init__(self, store: FeatureStore, config: Config) -> None:
         self._store = store
         self._config = config
+        self._repo_root = Path(config.repo_root).resolve()
+
+    def _resolve_path(self, path: str) -> Path | None:
+        """Resolve a user-provided path relative to repo_root, ensuring it stays within bounds."""
+        try:
+            p = (self._repo_root / path).resolve()
+            # Must be within repo_root
+            if self._repo_root in p.parents or p == self._repo_root:
+                return p
+        except (ValueError, OSError):
+            pass
+        return None
 
     def list_tools(self) -> list[dict[str, Any]]:
         """Return OpenAI-compatible tool definitions."""
@@ -75,15 +93,132 @@ class ToolRegistry:
                     "parameters": {"type": "object", "properties": {}},
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a text file from the project. Returns content up to 100KB.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Relative path from project root, e.g. src/hilog_agent/server.py",
+                            }
+                        },
+                        "required": ["path"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_code",
+                    "description": "Search source code for a pattern (case-insensitive regex). Returns matching file:line snippets, max 50 results.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "pattern": {
+                                "type": "string",
+                                "description": "Regular expression to search for",
+                            },
+                            "file_pattern": {
+                                "type": "string",
+                                "description": "Optional glob pattern to filter files, e.g. *.py or *.yaml",
+                            },
+                        },
+                        "required": ["pattern"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "filter_hilog_by_time",
+                    "description": "Parse a hilog file and return events within a time window. Returns event count and up to 20 sample events.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "log_path": {
+                                "type": "string",
+                                "description": "Path to the hilog file",
+                            },
+                            "time": {
+                                "type": "string",
+                                "description": "Center time, format: YYYY-MM-DD HH:MM",
+                            },
+                            "window_before": {
+                                "type": "integer",
+                                "description": "Seconds before center time (default 60)",
+                            },
+                            "window_after": {
+                                "type": "integer",
+                                "description": "Seconds after center time (default 60)",
+                            },
+                        },
+                        "required": ["log_path", "time"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "match_logs_by_patterns",
+                    "description": "Search parsed log events by tag and text pattern. Returns matching events with their raw text.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "log_path": {
+                                "type": "string",
+                                "description": "Path to the hilog file",
+                            },
+                            "time": {
+                                "type": "string",
+                                "description": "Center time, format: YYYY-MM-DD HH:MM",
+                            },
+                            "window_before": {
+                                "type": "integer",
+                                "description": "Seconds before center time (default 60)",
+                            },
+                            "window_after": {
+                                "type": "integer",
+                                "description": "Seconds after center time (default 60)",
+                            },
+                            "tag": {
+                                "type": "string",
+                                "description": "Log tag to match (exact), e.g. CAM, CameraService",
+                            },
+                            "pattern": {
+                                "type": "string",
+                                "description": "Text or regex pattern to search in log messages",
+                            },
+                            "match_type": {
+                                "type": "string",
+                                "enum": ["substring", "regex"],
+                                "description": "substring for plain text match, regex for pattern match",
+                            },
+                            "level": {
+                                "type": "string",
+                                "enum": ["D", "I", "W", "E", "F"],
+                                "description": "Optional log level filter: D(ebug), I(nfo), W(arn), E(rror), F(atal)",
+                            },
+                        },
+                        "required": ["log_path", "time", "tag", "pattern", "match_type"],
+                    },
+                },
+            },
         ]
 
     def call(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """Execute a tool by name, return JSON string result."""
         logger.info("tool call: %s(%s)", tool_name, arguments)
+
+        # --- list_features ---
         if tool_name == "list_features":
             names = self._store.list_features()
             return json.dumps({"features": names}, ensure_ascii=False)
 
+        # --- read_feature ---
         if tool_name == "read_feature":
             name = arguments.get("feature_name", "")
             try:
@@ -97,6 +232,146 @@ class ToolRegistry:
                 return json.dumps({
                     "error": f"Feature '{name}' not found. Available features: {', '.join(available) or '(none)'}",
                 }, ensure_ascii=False)
+
+        # --- read_file ---
+        if tool_name == "read_file":
+            path_str = arguments.get("path", "")
+            resolved = self._resolve_path(path_str)
+            if not resolved or not resolved.is_file():
+                return json.dumps({"error": f"File not found or outside project: {path_str}"})
+            try:
+                text = resolved.read_text(encoding="utf-8")
+                if len(text) > 100_000:
+                    text = text[:100_000] + "\n\n... (truncated at 100KB)"
+                return json.dumps({"path": path_str, "content": text}, ensure_ascii=False)
+            except Exception as e:
+                return json.dumps({"error": f"Failed to read file: {e}"})
+
+        # --- search_code ---
+        if tool_name == "search_code":
+            pattern = arguments.get("pattern", "")
+            file_pattern = arguments.get("file_pattern", "*")
+            try:
+                compiled = re.compile(pattern, re.IGNORECASE)
+            except re.error as e:
+                return json.dumps({"error": f"Invalid regex: {e}"})
+            matches = []
+            root = self._repo_root
+            if not root.is_dir():
+                return json.dumps({"error": f"Project root not found: {root}"})
+            try:
+                for dirpath, _dirnames, filenames in os.walk(root):
+                    # Skip hidden dirs and common non-source dirs
+                    rel = Path(dirpath).relative_to(root).as_posix()
+                    if any(p.startswith(".") for p in rel.split("/") if p):
+                        continue
+                    if rel in (".venv", "__pycache__", ".git", "node_modules", ".tmp"):
+                        continue
+                    for fn in filenames:
+                        if not Path(fn).suffix:  # skip extensionless files
+                            continue
+                        if file_pattern != "*" and not Path(fn).match(file_pattern):
+                            continue
+                        fp = Path(dirpath) / fn
+                        try:
+                            with open(fp, "r", encoding="utf-8", errors="replace") as f:
+                                for i, line in enumerate(f, 1):
+                                    if compiled.search(line):
+                                        rel_path = fp.relative_to(root).as_posix()
+                                        matches.append(f"{rel_path}:{i}: {line.rstrip()[:200]}")
+                                        if len(matches) >= 50:
+                                            break
+                            if len(matches) >= 50:
+                                break
+                        except (OSError, UnicodeDecodeError):
+                            continue
+                    if len(matches) >= 50:
+                        break
+            except Exception as e:
+                return json.dumps({"error": f"Search failed: {e}"})
+            if not matches:
+                return json.dumps({"matches": [], "count": 0})
+            return json.dumps({"matches": matches, "count": len(matches)}, ensure_ascii=False)
+
+        # --- filter_hilog_by_time ---
+        if tool_name == "filter_hilog_by_time":
+            log_path = arguments.get("log_path", "")
+            time_str = arguments.get("time", "")
+            window_before = arguments.get("window_before", 60)
+            window_after = arguments.get("window_after", 60)
+            try:
+                center = datetime.strptime(time_str, "%Y-%m-%d %H:%M")
+            except ValueError:
+                return json.dumps({"error": "Invalid time format. Use YYYY-MM-DD HH:MM"})
+            try:
+                parsed = parse_hilog_file(log_path)
+            except Exception as e:
+                return json.dumps({"error": f"Failed to parse log file '{log_path}': {e}"})
+            filtered = filter_by_time_window(parsed.events, center, window_before, window_after)
+            samples = [
+                {
+                    "tag": e.tag,
+                    "level": e.level,
+                    "timestamp": e.timestamp.isoformat(),
+                    "message": e.message[:300],
+                    "raw": e.raw[:300],
+                }
+                for e in filtered[:20]
+            ]
+            return json.dumps({
+                "total_events": len(parsed.events),
+                "window_events": len(filtered),
+                "time_range": {
+                    "from": (center.timestamp() - window_before),
+                    "to": (center.timestamp() + window_after),
+                },
+                "samples": samples,
+            }, ensure_ascii=False)
+
+        # --- match_logs_by_patterns ---
+        if tool_name == "match_logs_by_patterns":
+            log_path = arguments.get("log_path", "")
+            time_str = arguments.get("time", "")
+            window_before = arguments.get("window_before", 60)
+            window_after = arguments.get("window_after", 60)
+            tag = arguments.get("tag", "")
+            pattern = arguments.get("pattern", "")
+            match_type = arguments.get("match_type", "substring")
+            level = arguments.get("level", None)
+            if match_type not in ("substring", "regex"):
+                return json.dumps({"error": "match_type must be 'substring' or 'regex'"})
+            try:
+                center = datetime.strptime(time_str, "%Y-%m-%d %H:%M")
+            except ValueError:
+                return json.dumps({"error": "Invalid time format. Use YYYY-MM-DD HH:MM"})
+            try:
+                parsed = parse_hilog_file(log_path)
+            except Exception as e:
+                return json.dumps({"error": f"Failed to parse log file '{log_path}': {e}"})
+            filtered = filter_by_time_window(parsed.events, center, window_before, window_after)
+            try:
+                results = match_logs(filtered, tag=tag, pattern=pattern, match_type=match_type, level=level)
+            except re.error as e:
+                return json.dumps({"error": f"Invalid regex pattern: {e}"})
+            matches = [
+                {
+                    "tag": r.event.tag,
+                    "level": r.event.level,
+                    "timestamp": r.event.timestamp.isoformat(),
+                    "message": r.event.message[:300],
+                    "match_text": r.match_text[:200],
+                    "raw": r.event.raw[:400],
+                }
+                for r in results[:50]
+            ]
+            return json.dumps({
+                "total_in_window": len(filtered),
+                "matches_found": len(results),
+                "tag": tag,
+                "pattern": pattern,
+                "match_type": match_type,
+                "matches": matches,
+            }, ensure_ascii=False)
 
         logger.warning("unknown tool requested: %s", tool_name)
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
@@ -316,6 +591,10 @@ Available features:
 You have access to tools:
 - list_features: list all feature names
 - read_feature(feature_name): read a feature's full knowledge YAML
+- read_file(path): read a source file from the project
+- search_code(pattern, file_pattern?): search source code with regex
+- filter_hilog_by_time(log_path, time, window_before?, window_after?): parse and filter hilog events by time window
+- match_logs_by_patterns(log_path, time, tag, pattern, match_type, window_before?, window_after?, level?): search parsed logs for matching patterns
 
 When troubleshooting:
 1. Use tools to gather feature knowledge
